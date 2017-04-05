@@ -15,12 +15,37 @@
  *
  */
 
+#ifndef zuccherino_common_h
+#define zuccherino_common_h
+
+#include "print.h"
 #include "trace.h"
+#include "parse.h"
+#include <simp/SimpSolver.h>
+#include <iostream>
+#include <sstream>
 
-#ifdef TRACE_ON
+using std::cin;
+using std::cout;
+using std::cerr;
+using std::endl;
+using std::ostream;
+using std::string;
+using std::stringstream;
 
-Glucose::IntOption option_trace_solver("TRACE", "trace-solver", "Set trace level of solver (class GlucoseWrapper).", 0, Glucose::IntRange(0, INT32_MAX));
-Glucose::IntOption option_trace_cc("TRACE", "trace-cc", "Set trace level of cardinality constraints.", 0, Glucose::IntRange(0, INT32_MAX));
-Glucose::IntOption option_trace_maxsat("TRACE", "trace-maxsat", "Set trace level of MaxSAT solver.", 0, Glucose::IntRange(0, INT32_MAX));
+using Glucose::Lit;
+using Glucose::Var;
+using Glucose::vec;
+using Glucose::lbool;
+using Glucose::CRef;
+using Glucose::CRef_Undef;
+using Glucose::Clause;
+using Glucose::mkLit;
+
+namespace zuccherino {
+
+const CRef CRef_MoreConflict = CRef_Undef - 1;
+    
+}
 
 #endif

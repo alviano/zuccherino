@@ -27,7 +27,9 @@
 
 #include <utils/Options.h>
 
-extern Glucose::IntOption option_trace_main;
+extern Glucose::IntOption option_trace_solver;
+extern Glucose::IntOption option_trace_cc;
+extern Glucose::IntOption option_trace_maxsat;
 
 #define trace(type, level, msg) \
     if(option_trace_##type >= level) {\

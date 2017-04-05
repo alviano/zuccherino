@@ -18,30 +18,27 @@
 #ifndef zuccherino_glucose_wrapper_h
 #define zuccherino_glucose_wrapper_h
 
-#include "utils/print.h"
-#include <simp/SimpSolver.h>
-#include <iostream>
+#include "utils/common.h"
 
-using std::cin;
-using std::cout;
-using std::cerr;
-using std::endl;
-
-using Glucose::Lit;
-using Glucose::Var;
-using Glucose::vec;
-using Glucose::lbool;
-using Glucose::CRef;
-using Glucose::CRef_Undef;
-using Glucose::Clause;
+#include "Propagator.h"
 
 namespace zuccherino {
     
 class GlucoseWrapper : public Glucose::SimpSolver {
 public:
-    GlucoseWrapper() { setIncrementalMode(); }
+    inline GlucoseWrapper() : nTrailPosition(0) { setIncrementalMode(); }
     
     void parse(gzFile in);
+    
+    virtual Var newVar(bool polarity = true, bool dvar = true);
+    
+    void uncheckedEnqueueFromPropagator(Lit lit);
+    
+    using Glucose::SimpSolver::decisionLevel;
+    using Glucose::SimpSolver::level;
+    inline Lit assigned(int index) const { return trail[index]; }
+    inline int assignedIndex(Var var) const { return trailPosition[var]; }
+    inline int assignedIndex(Lit lit) const { return trailPosition[var(lit)]; }
     
     lbool solve();
     lbool solveWithBudget();
@@ -49,6 +46,26 @@ public:
     void copyModel();
     void printModel() const;
     void learnClauseFromModel();
+
+    virtual void cancelUntil(int level);
+
+    virtual CRef morePropagate();
+    virtual bool moreConflict(vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
+    virtual bool moreReason(Lit lit, vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
+    virtual bool moreReason(Lit lit);
+    
+    inline void add(PropagatorHandler* ph) { assert(ph != NULL); propagatorHandlers.push(ph); }
+    
+protected:
+    vec<int> trailPosition;
+    int nTrailPosition;
+    
+    void processConflict(const vec<Lit>& conflict, vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
+    void processReason(const vec<Lit>& clause, vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
+    void processReason(const vec<Lit>& clause);
+
+private:
+    vec<PropagatorHandler*> propagatorHandlers;
 };
 
 } // zuccherino

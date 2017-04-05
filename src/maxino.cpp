@@ -17,9 +17,9 @@
 
 #include "utils/main.h"
 
-#include "GlucoseWrapper.h"
+#include "MaxSAT.h"
 
-static zuccherino::GlucoseWrapper* solver = NULL;
+static zuccherino::MaxSAT* solver = NULL;
 void SIGINT_interrupt(int) { 
     solver->interrupt();
     sleep(1);
@@ -39,13 +39,13 @@ int main(int argc, char** argv) {
         exit(-1);
     }
     
-    zuccherino::GlucoseWrapper solver;
+    zuccherino::MaxSAT solver;
     ::solver = &solver;
 
     gzFile in = argc == 1 ? gzdopen(0, "rb") : gzopen(argv[1], "rb");
     solver.parse(in);
     gzclose(in);
-
+    
     solver.eliminate(true);
     if(!solver.okay()) {
         cout << "UNSATISFIABLE" << endl;

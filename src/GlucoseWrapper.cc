@@ -44,24 +44,22 @@ void GlucoseWrapper::parse(gzFile in_) {
     for(int i = 0; i < nVars(); i++) setFrozen(i, true);
 }
 
+Var GlucoseWrapper::newVar(bool polarity, bool dvar) {
+    trailPosition.push();
+    for(int i = 0; i < propagatorHandlers.size(); i++) propagatorHandlers[i]->onNewVar();
+    return Glucose::SimpSolver::newVar(polarity, dvar);
+}
+
 lbool GlucoseWrapper::solve() {
     conflict.clear();
     cancelUntil(0);
-
-    solves++;
-
-    if(!ok) return l_False;
 
     lbool status = l_Undef;
     lbool ret = l_False;
     int count = 0;
     for(;;) {
         status = solveWithBudget();
-        if(status == l_False) {
-            if(conflict.size() == 0) ok = false;
-            break;
-        }
-        assert(status == l_True);
+        if(status != l_True) break;
         
         if(++count == 1) cout << "s SATISFIABLE" << endl;
         
@@ -78,6 +76,7 @@ lbool GlucoseWrapper::solve() {
 }
 
 lbool GlucoseWrapper::solveWithBudget() {
+    if(!ok) { conflict.clear(); return l_False; }
     lbool status = l_Undef;
     int curr_restarts = 0;
     while(status == l_Undef) {
@@ -108,13 +107,14 @@ void GlucoseWrapper::printModel() const {
 
 void GlucoseWrapper::learnClauseFromModel() {
     vec<Lit> lits;
-    lits.growTo(trail_lim.size());
-    for(int i = 0; i < lits.size(); i++) {
+    for(int i = trail_lim.size() - 1; i >= 0; i--) {
         Lit lit = trail[trail_lim[i]];
+        if(level(var(lit)) == 0) continue;
         assert(reason(var(lit)) == CRef_Undef);
-        assert(level(var(lit)) > 0);
-        lits[lits.size() - level(var(lit))] = ~lit;
+        lits.push(~lit);
     }
+    if(lits.size() == 0) { ok = false; return; }
+    
     cancelUntil(decisionLevel()-1);
     if (lits.size() == 1)
         uncheckedEnqueue(lits[0]);
@@ -123,6 +123,163 @@ void GlucoseWrapper::learnClauseFromModel() {
         clauses.push(cr);
         attachClause(cr);
         uncheckedEnqueue(lits[0], cr);
+    }
+}
+
+void GlucoseWrapper::cancelUntil(int level) {
+    trace(solver, 5, "Cancel until " << level);
+    int oldSize = nAssigns();
+    Glucose::SimpSolver::cancelUntil(level);
+    nTrailPosition = nAssigns();
+    for(int i = 0; i < propagatorHandlers.size(); i++) propagatorHandlers[i]->onCancel(oldSize);
+}
+
+void GlucoseWrapper::uncheckedEnqueueFromPropagator(Lit lit) { 
+    uncheckedEnqueue(lit);
+    assert(nTrailPosition + 1 == nAssigns());
+    trailPosition[var(assigned(nTrailPosition))] = nTrailPosition;
+    nTrailPosition++;
+}
+
+CRef GlucoseWrapper::morePropagate() {
+    trace(solver, 5, "More propagate...");
+    while(nTrailPosition < nAssigns()) { trailPosition[var(assigned(nTrailPosition))] = nTrailPosition; nTrailPosition++; }
+    
+    CRef ret = CRef_Undef;
+    for(int i = 0; i < propagatorHandlers.size(); i++) {
+        ret = propagatorHandlers[i]->propagate();
+        if(ret != CRef_Undef) break;
+    }
+    return ret;
+}
+
+bool GlucoseWrapper::moreConflict(vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC) {
+    vec<Lit> conflict;
+    for(int i = 0; i < propagatorHandlers.size(); i++) {
+        assert(conflict.size() == 0);
+        if(!propagatorHandlers[i]->hasConflict(conflict)) continue;
+        assert(conflict.size() > 0);
+        processConflict(conflict, out_learnt, selectors, pathC);
+        return true;
+    }
+    return false;
+}
+
+bool GlucoseWrapper::moreReason(Lit lit, vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC) {
+    vec<Lit> reason;
+    for(int i = 0; i < propagatorHandlers.size(); i++) {
+        assert(reason.size() == 0);
+        if(!propagatorHandlers[i]->hasReason(lit, reason)) continue;
+        assert(reason.size() > 0);
+        assert(reason[0] == lit);
+        processReason(reason, out_learnt, selectors, pathC);
+        return true;
+    }
+    return false;
+}
+
+bool GlucoseWrapper::moreReason(Lit lit) {
+    vec<Lit> reason;
+    for(int i = 0; i < propagatorHandlers.size(); i++) {
+        assert(reason.size() == 0);
+        if(!propagatorHandlers[i]->hasReason(lit, reason)) continue;
+        assert(reason.size() > 0);
+        assert(reason[0] == lit);
+        processReason(reason);
+        return true;
+    }
+    return false;
+}
+
+void GlucoseWrapper::processConflict(const vec<Lit>& conflict, vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC) {
+    assert(conflict.size() > 0);
+    assert(decisionLevel() != 0);
+    
+    Lit conflictLit = conflict[0];
+    if(!seen[var(conflictLit)] && level(var(conflictLit)) > 0) {
+        if(!isSelector(var(conflictLit))) varBumpActivity(var(conflictLit));
+        seen[var(conflictLit)] = 1;
+        assert(level(var(conflictLit)) == decisionLevel());
+        pathC++;
+        // UPDATEVARACTIVITY trick (see competition'09 companion paper)
+        if(!isSelector(var(conflictLit)) && (reason(var(conflictLit)) != CRef_Undef) && ca[reason(var(conflictLit))].learnt())
+            lastDecisionLevel.push(conflictLit);
+    }
+    
+    for(int i = 1; i < conflict.size(); i++) {
+        Lit q = conflict[i];
+        assert(value(q) == l_False);
+        
+        if(seen[var(q)]) continue;
+        if(level(var(q)) == 0) continue;
+        
+        if(!isSelector(var(q)))
+            varBumpActivity(var(q));
+        
+        seen[var(q)] = 1;
+        
+        if(level(var(q)) >= decisionLevel()) {
+            pathC++;
+            // UPDATEVARACTIVITY trick (see competition'09 companion paper)
+            if(!isSelector(var(q)) && (reason(var(q)) != CRef_Undef) && ca[reason(var(q))].learnt())
+                lastDecisionLevel.push(q);
+        }
+        else {
+            if(isSelector(var(q))) {
+                assert(value(q) == l_False);
+                selectors.push(q);
+            }
+            else 
+                out_learnt.push(q);
+        }
+    }
+}
+
+void GlucoseWrapper::processReason(const vec<Lit>& clause, vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC) {
+    assert(clause.size() > 0);
+    assert(decisionLevel() != 0);
+    assert(reason(var(clause[0])) == CRef_Undef);
+    for(int i = 1; i < clause.size(); i++) {
+        Lit q = clause[i];
+        assert(value(q) == l_False);
+        assert(level(var(q)) <= level(var(clause[0])));
+        
+        if(seen[var(q)]) continue;
+        if(level(var(q)) == 0) continue;
+        
+        if(!isSelector(var(q)))
+            varBumpActivity(var(q));
+        
+        seen[var(q)] = 1;
+        
+        if(level(var(q)) >= decisionLevel()) {
+            pathC++;
+            // UPDATEVARACTIVITY trick (see competition'09 companion paper)
+            if(!isSelector(var(q)) && (reason(var(q)) != CRef_Undef) && ca[reason(var(q))].learnt())
+                lastDecisionLevel.push(q);
+        }
+        else {
+            if(isSelector(var(q))) {
+                assert(value(q) == l_False);
+                selectors.push(q);
+            }
+            else 
+                out_learnt.push(q);
+        }
+    }
+}
+    
+void GlucoseWrapper::processReason(const vec<Lit>& clause) {
+    assert(clause.size() > 0);
+    assert(decisionLevel() != 0);
+    assert(reason(var(clause[0])) == CRef_Undef);
+    
+    for(int i = 1; i < clause.size(); i++) {
+        Lit l = clause[i];
+        assert(value(l) == l_False);
+        assert(level(var(l)) <= level(var(clause[0])));
+        if(level(var(l)) == 0) continue;
+        seen[var(l)] = 1;
     }
 }
 

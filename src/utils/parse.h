@@ -15,12 +15,24 @@
  *
  */
 
-#include "trace.h"
+#ifndef zuccherino_parse_h
+#define zuccherino_parse_h
 
-#ifdef TRACE_ON
+namespace zuccherino {
+    
+template<class B>
+int64_t parseLong(B& in) {
+    int64_t    val = 0;
+    bool    neg = false;
+    skipWhitespace(in);
+    if      (*in == '-') neg = true, ++in;
+    else if (*in == '+') ++in;
+    if (*in < '0' || *in > '9') fprintf(stderr, "PARSE ERROR! Unexpected char: %c\n", *in), exit(3);
+    while (*in >= '0' && *in <= '9')
+        val = val*10 + (*in - '0'),
+        ++in;
+    return neg ? -val : val; }
 
-Glucose::IntOption option_trace_solver("TRACE", "trace-solver", "Set trace level of solver (class GlucoseWrapper).", 0, Glucose::IntRange(0, INT32_MAX));
-Glucose::IntOption option_trace_cc("TRACE", "trace-cc", "Set trace level of cardinality constraints.", 0, Glucose::IntRange(0, INT32_MAX));
-Glucose::IntOption option_trace_maxsat("TRACE", "trace-maxsat", "Set trace level of MaxSAT solver.", 0, Glucose::IntRange(0, INT32_MAX));
+}
 
 #endif
