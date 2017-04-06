@@ -38,21 +38,22 @@ private:
     
     inline CardinalityConstraint() {}
     inline CardinalityConstraint(vec<Lit>& lits_, int bound) { assert(bound >= 0); lits_.moveTo(lits); loosable = lits.size() - bound; }
-    inline CardinalityConstraint(CardinalityConstraint& cc) : loosable(cc.loosable) { cc.lits.moveTo(lits); }
 };
 
 class CardinalityConstraintHandler : public PropagatorHandler {
 public:
     inline CardinalityConstraintHandler(GlucoseWrapper* solver) : PropagatorHandler(solver) {}
-    virtual CRef onAssign(Lit lit, Propagator* propagator);
-    virtual void onUnassign(Lit lit, Propagator* propagator);
-    virtual void getReason(Lit lit, Propagator* propagator, vec<Lit>& ret);
 
     bool addGreaterEqual(vec<Lit>& lits, int bound);
     bool addLessEqual(vec<Lit>& lits, int bound);
     bool addEqual(vec<Lit>& lits, int bound);
     inline bool addGreater(vec<Lit>& lits, int bound) { return addGreaterEqual(lits, bound + 1); }
     inline bool addLess(vec<Lit>& lits, int bound) { return addLessEqual(lits, bound - 1); }
+
+protected:
+    virtual CRef onAssign(Lit lit, Propagator* propagator);
+    virtual void onUnassign(Lit lit, Propagator* propagator);
+    virtual void getReason(Lit lit, Propagator* propagator, vec<Lit>& ret);
 
 private:
     CardinalityConstraint& cast(Propagator* propagator) const;

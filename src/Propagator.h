@@ -38,11 +38,6 @@ public:
     void onCancel(int previouslyAsssigned);
     CRef propagate();
     
-    virtual CRef onAssign(Lit lit, Propagator* propagator) = 0;
-    virtual void onUnassign(Lit lit, Propagator* propagator) = 0;
-    virtual void getReason(Lit lit, Propagator* propagator, vec<Lit>& res) = 0;
-    
-    void add(Propagator* propagator);
     void onNewVar();
     
     bool hasConflict(vec<Lit>& ret);
@@ -52,6 +47,12 @@ protected:
     vec<Lit> conflict;
     vec<Propagator*> reason;
     GlucoseWrapper* solver;
+
+    void add(Propagator* propagator);
+
+    virtual CRef onAssign(Lit lit, Propagator* propagator) = 0;
+    virtual void onUnassign(Lit lit, Propagator* propagator) = 0;
+    virtual void getReason(Lit lit, Propagator* propagator, vec<Lit>& res) = 0;
     
 private:
     int nextToPropagate;
@@ -63,7 +64,7 @@ private:
     
     CRef propagate(Lit lit);
 };
-    
+
 }
 
 #endif
