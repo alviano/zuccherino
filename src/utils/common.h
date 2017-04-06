@@ -18,6 +18,7 @@
 #ifndef zuccherino_common_h
 #define zuccherino_common_h
 
+#include "assert.h"
 #include "print.h"
 #include "trace.h"
 #include "parse.h"
