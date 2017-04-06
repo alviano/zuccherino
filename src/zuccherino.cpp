@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
     
     lbool ret = solver.solve();
     
-#ifndef NDUBUG
+#ifndef NDEBUG
     exit(ret == l_True ? 10 : ret == l_False ? 20 : 0);     // (faster than "return", which will invoke the destructor for 'Solver')
 #endif
     return (ret == l_True ? 10 : ret == l_False ? 20 : 0);
