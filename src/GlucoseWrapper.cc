@@ -145,10 +145,12 @@ CRef GlucoseWrapper::morePropagate() {
     trace(solver, 5, "More propagate...");
     while(nTrailPosition < nAssigns()) { trailPosition[var(assigned(nTrailPosition))] = nTrailPosition; nTrailPosition++; }
     
+    int n = nAssigns();
     CRef ret = CRef_Undef;
     for(int i = 0; i < propagatorHandlers.size(); i++) {
         ret = propagatorHandlers[i]->propagate();
         if(ret != CRef_Undef) break;
+        if(nAssigns() < n) break;
     }
     return ret;
 }

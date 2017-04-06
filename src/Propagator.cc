@@ -58,10 +58,12 @@ void PropagatorHandler::onCancel(int previouslyAssigned) {
 }
 
 CRef PropagatorHandler::propagate() {
-    while(nextToPropagate < solver->nAssigns()) {
+    int n = solver->nAssigns();
+    while(nextToPropagate < n) {
         Lit lit = solver->assigned(nextToPropagate++);
         CRef ret = propagate(lit);
         if(ret != CRef_Undef) return ret;
+        if(solver->nAssigns() > n) break;
     }
     return CRef_Undef;
 }
