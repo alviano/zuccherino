@@ -43,6 +43,7 @@ int main(int argc, char** argv) {
     ::solver = &solver;
 
     gzFile in = argc == 1 ? gzdopen(0, "rb") : gzopen(argv[1], "rb");
+    if(in == NULL) cerr << "Cannot open file " << (argc == 1 ? "STDIN" : argv[1]) << endl, exit(-1);
     solver.parse(in);
     gzclose(in);
 

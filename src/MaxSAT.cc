@@ -284,7 +284,7 @@ int64_t MaxSAT::computeConflictWeight() const {
 
 void MaxSAT::processConflict(int64_t weight) {
     assert(decisionLevel() == 0);
-    assert(conflict.size() > 1);
+    assert(conflict.size() > 0);
     trace(maxsat, 10, "Use algorithm one");
     vec<Lit> lits;
     int bound = conflict.size() - 1;
@@ -314,9 +314,8 @@ lbool MaxSAT::solve() {
     
     int64_t limit = computeNextLimit(INT64_MAX);
     
-    for(;;) {
+    while(lowerBound < upperBound) {
         hardening();
-        if(lowerBound == upperBound) break;
         setAssumptions(limit);
         status = solveWithBudget();
         if(status == l_True) { 
@@ -328,39 +327,29 @@ lbool MaxSAT::solve() {
             trace(maxsat, 2, "UNSAT! Conflict of size " << conflict.size());
             trace(maxsat, 100, "Conflict: " << conflict);
             
-            if(conflict.size() == 0) break;
+            if(conflict.size() == 0) { lowerBound = upperBound; continue; }
 
             assert(computeConflictWeight() == limit);
             shrinkConflict(limit);
             trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
 
             int64_t w = computeConflictWeight();
+            assert(w == limit);
+            cout << conflict <<  " " << w << endl;
             addToLowerBound(w);
             
             assert(conflict.size() > 0);
             trace(maxsat, 4, "Analyze conflict of size " << conflict.size() << " and weight " << w);
-            if(conflict.size() == 1) weights[var(conflict.last())] = 0;
-            else processConflict(w);
+            processConflict(w);
         }
     }
-    trace(maxsat, 2, "Bounds: [" << lowerBound << ":" << upperBound << "]");
+    assert(lowerBound == upperBound);
 
     if(upperBound == INT64_MAX) { cout << "s UNSATISFIABLE" << endl; return l_False; }
     
+    hardening();
     setAssumptions(1);
     assert(softLits.size() == 0);
-
-    if(lowerBound < upperBound) {
-        assert(!ok || solveWithBudget() == l_False);
-        lowerBound = upperBound;
-//        setAssumptions(1);
-//        if(ok && solveWithBudget() == l_True) updateUpperBound();
-//        else lowerBound = upperBound;
-    }
-    trace(maxsat, 2, "Bounds: [" << lowerBound << ":" << upperBound << "]");
-    
-    assert(lowerBound == upperBound);
-    assert(upperBound < INT64_MAX);
     
     cout << "o " << lowerBound << endl;
     cout << "s OPTIMUM FOUND" << endl;
