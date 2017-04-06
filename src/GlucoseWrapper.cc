@@ -51,7 +51,6 @@ Var GlucoseWrapper::newVar(bool polarity, bool dvar) {
 }
 
 lbool GlucoseWrapper::solve() {
-    conflict.clear();
     cancelUntil(0);
 
     lbool status = l_Undef;
@@ -76,7 +75,8 @@ lbool GlucoseWrapper::solve() {
 }
 
 lbool GlucoseWrapper::solveWithBudget() {
-    if(!ok) { conflict.clear(); return l_False; }
+    conflict.clear();
+    if(!ok) return l_False;
     lbool status = l_Undef;
     int curr_restarts = 0;
     while(status == l_Undef) {
