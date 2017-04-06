@@ -335,7 +335,6 @@ lbool MaxSAT::solve() {
 
             int64_t w = computeConflictWeight();
             assert(w == limit);
-            cout << conflict <<  " " << w << endl;
             addToLowerBound(w);
             
             assert(conflict.size() > 0);
