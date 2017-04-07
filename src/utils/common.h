@@ -19,6 +19,7 @@
 #define zuccherino_common_h
 
 #include "assert.h"
+#include "math.h"
 #include "print.h"
 #include "trace.h"
 #include "parse.h"
