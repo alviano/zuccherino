@@ -39,20 +39,7 @@ BINARIES = $(patsubst $(SOURCE_DIR)%.cpp,$(BUILD_DIR)%, $(APPS))
 OBJS = $(patsubst $(SOURCE_DIR)%.cc,$(BUILD_DIR)%.o, $(SRCS))
 DEPS = $(patsubst $(SOURCE_DIR)%.cc,$(BUILD_DIR)%.d, $(SRCS))
 
-EXTERN = glucose-syrup
-
-.PHONY: $(EXTERN)
-
-all: $(EXTERN) $(BINARIES)
-
-glucose-syrup:
-	@if [ ! -d src/glucose-syrup ]; then \
-	    echo "************************************************************"; \
-	    echo "* Hey! Directory src/glucose-syrup is missing.             *"; \
-	    echo "* Did you run bootstrap.sh?                                *"; \
-	    echo "************************************************************"; \
-	    exit 1; \
-    fi
+all: $(BINARIES)
 
 $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cc
 	$(CXX) $(CXXFLAGS) -c $< -o $@
