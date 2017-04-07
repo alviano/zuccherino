@@ -24,7 +24,7 @@ namespace zuccherino {
     
 class CardinalityConstraintPropagator: public Propagator {
 public:
-    inline CardinalityConstraintPropagator(GlucoseWrapper& solver) : Propagator(solver) {}
+    inline CardinalityConstraintPropagator(GlucoseWrapper& solver) : Propagator(solver, true) {}
 
     bool addGreaterEqual(vec<Lit>& lits, int bound);
     bool addLessEqual(vec<Lit>& lits, int bound);
@@ -43,11 +43,11 @@ protected:
         inline CardinalityConstraint(vec<Lit>& lits_, int bound) { assert(bound >= 0); lits_.moveTo(lits); loosable = lits.size() - bound; }
     };
     
-    virtual void notifyFor(Axiom* axiom, vec<Lit>& onAssign, vec<Lit>& onUnassign);
-    virtual bool onSimplify(Axiom* axiom, Lit lit);
-    virtual bool onAssign(Axiom* axiom, Lit lit);
-    virtual void onUnassign(Axiom* axiom, Lit lit);
-    virtual void getReason(Axiom* axiom, Lit lit, vec<Lit>& ret);
+    virtual void notifyFor(Axiom* axiom, vec<Lit>& lits);
+    virtual bool onSimplify(Lit lit, int observedIndex);
+    virtual bool onAssign(Lit lit, int observedIndex);
+    virtual void onUnassign(Lit lit, int observedIndex);
+    virtual void getReason(Lit lit, Axiom* axiom, vec<Lit>& ret);
 
 private:
     inline CardinalityConstraint& cast(Axiom* axiom) const;

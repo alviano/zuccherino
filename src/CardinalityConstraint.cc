@@ -27,17 +27,6 @@ string CardinalityConstraintPropagator::CardinalityConstraint::toString() const 
     return ss.str();
 }
 
-void CardinalityConstraintPropagator::notifyFor(Axiom* axiom, vec<Lit>& onAssign, vec<Lit>& onUnassign) {
-    assert(onAssign.size() == 0);
-    assert(onUnassign.size() == 0);
-    
-    CardinalityConstraint& cc = cast(axiom);
-    for(int i = 0; i < cc.lits.size(); i++) {
-        onAssign.push(~cc.lits[i]);
-        onUnassign.push(~cc.lits[i]);
-    }
-}
-
 bool CardinalityConstraintPropagator::addGreaterEqual(vec<Lit>& lits_, int bound) {
     assert(solver.decisionLevel() == 0);
     
@@ -52,22 +41,21 @@ bool CardinalityConstraintPropagator::addGreaterEqual(vec<Lit>& lits_, int bound
     }
     lits.shrink_(lits.size()-j);
 
-    if(bound < 0) return false;
-    if(bound == 0) return true;
+    if(bound <= 0) return true;
     if(bound == 1) { return solver.addClause(lits); }
     if(bound == lits.size()) {
         for(int i = 0; i < lits.size(); i++) if(!solver.addClause(lits[i])) return false;
         return true;
     }
+    if(bound > lits.size()) return false;
 
     add(new CardinalityConstraint(lits, bound));
     return true;
 }
 
 bool CardinalityConstraintPropagator::addLessEqual(vec<Lit>& lits, int bound) {
-    vec<Lit> tmp;
-    for(int i = 0; i < lits.size(); i++) tmp.push(~lits[i]);
-    return addGreaterEqual(tmp, lits.size() - bound);
+    for(int i = 0; i < lits.size(); i++) lits[i] = ~lits[i];
+    return addGreaterEqual(lits, lits.size() - bound);
 }
 
 bool CardinalityConstraintPropagator::addEqual(vec<Lit>& lits, int bound) {
@@ -76,8 +64,16 @@ bool CardinalityConstraintPropagator::addEqual(vec<Lit>& lits, int bound) {
     return addGreaterEqual(lits, bound) && addLessEqual(tmp, bound);
 }
 
-bool CardinalityConstraintPropagator::onSimplify(Axiom* axiom, Lit lit) {
+void CardinalityConstraintPropagator::notifyFor(Axiom* axiom, vec<Lit>& lits) {
+    assert(lits.size() == 0);
+    
+    CardinalityConstraint& cc = cast(axiom);
+    for(int i = 0; i < cc.lits.size(); i++) lits.push(~cc.lits[i]);
+}
+
+bool CardinalityConstraintPropagator::onSimplify(Lit lit, int observedIndex) {
     assert(solver.decisionLevel() == 0);
+    Axiom* axiom = getObserved(lit, observedIndex);
     CardinalityConstraint& cc = cast(axiom);
     
     trace(cc, 10, "Propagate " << lit << "@" << solver.decisionLevel() << " on " << cc);
@@ -99,8 +95,9 @@ bool CardinalityConstraintPropagator::onSimplify(Axiom* axiom, Lit lit) {
     return true;
 }
 
-bool CardinalityConstraintPropagator::onAssign(Axiom* axiom, Lit lit) {
+bool CardinalityConstraintPropagator::onAssign(Lit lit, int observedIndex) {
     assert(solver.decisionLevel() > 0);
+    Axiom* axiom = getObserved(lit, observedIndex);
     CardinalityConstraint& cc = cast(axiom);
     
     trace(cc, 10, "Propagate " << lit << "@" << solver.decisionLevel() << " on " << cc);
@@ -131,13 +128,14 @@ bool CardinalityConstraintPropagator::onAssign(Axiom* axiom, Lit lit) {
     return true;
 }
 
-void CardinalityConstraintPropagator::onUnassign(Axiom* axiom, Lit /*lit*/) {
+void CardinalityConstraintPropagator::onUnassign(Lit lit, int observedIndex) {
+    Axiom* axiom = getObserved(lit, observedIndex);
     CardinalityConstraint& cc = cast(axiom);
     cc.loosable++;
     trace(cc, 15, "Restored " << cc);
 }
 
-void CardinalityConstraintPropagator::getReason(Axiom* axiom, Lit lit, vec<Lit>& ret) {
+void CardinalityConstraintPropagator::getReason(Lit lit, Axiom* axiom, vec<Lit>& ret) {
     assert(ret.size() == 0);
     CardinalityConstraint& cc = cast(axiom);
 

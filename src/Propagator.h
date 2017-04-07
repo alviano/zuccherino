@@ -26,14 +26,14 @@ class GlucoseWrapper;
 
 class Propagator {
 public:
-    Propagator(GlucoseWrapper& solver);
+    Propagator(GlucoseWrapper& solver, bool notifyOnCancel = false);
     virtual ~Propagator();
     
     void onCancel();
     bool simplify();
     bool propagate();
     
-    void onNewVar();
+    virtual void onNewVar();
     
     void getConflict(vec<Lit>& ret);
     void getReason(Lit lit, vec<Lit>& ret);
@@ -45,25 +45,26 @@ protected:
     
     GlucoseWrapper& solver;
 
+    inline Axiom* getObserved(Lit lit, int index) { return axioms[observed[sign(lit)][var(lit)][index]]; }
+
     void add(Axiom* axiom);
     void uncheckedEnqueue(Lit lit, Axiom* axiom);
     void setConflict(Lit lit, Axiom* axiom);
 
-    virtual void notifyFor(Axiom* axiom, vec<Lit>& onAssign, vec<Lit>& onUnassign) = 0;
-    virtual bool onSimplify(Axiom* axiom, Lit lit) = 0;
-    virtual bool onAssign(Axiom* axiom, Lit lit) = 0;
-    virtual void onUnassign(Axiom* axiom, Lit lit) = 0;
-    virtual void getReason(Axiom* axiom, Lit lit, vec<Lit>& res) = 0;
+    virtual void notifyFor(Axiom* axiom, vec<Lit>& lits) = 0;
+    virtual bool onSimplify(Lit lit, int observedIndex) = 0;
+    virtual bool onAssign(Lit lit, int observedIndex) = 0;
+    virtual void onUnassign(Lit /*lit*/, int /*observedIndex*/) {}
+    virtual void getReason(Lit lit, Axiom* reason, vec<Lit>& res) = 0;
     
 private:
     int nextToPropagate;
     vec<Axiom*> axioms;
-    vec< vec<Axiom*> > observed[4];
+    vec< vec<int> > observed[2];
     
     vec<Axiom*> reason;
     vec<Lit> conflictClause;
     
-    vec<Axiom*>* partialUnassignVector;
     int partialUnassignIndex;
     
     bool simplify(Lit lit);
