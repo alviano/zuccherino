@@ -83,20 +83,17 @@ bool CardinalityConstraintPropagator::onSimplify(Axiom* axiom, Lit lit) {
     trace(cc, 10, "Propagate " << lit << "@" << solver.decisionLevel() << " on " << cc);
     cc.loosable--;
     
+    if(cc.loosable < 0) return false;
     if(cc.loosable == 0) {
         for(int i = 0; i < cc.lits.size(); i++) {
             Lit l = cc.lits[i];
             lbool v = solver.value(l);
             if(v == l_Undef) {
-                trace(cc, 15, "Infer " << l)
-                solver.addClause(l);
+                trace(cc, 15, "Infer " << l);
+                if(!solver.addClause(l)) return false;
             }
         }
         cc.lits.clear();
-    }
-    else if(cc.loosable < 0) {
-        assert(solver.decisionLevel() == 0);
-        return false;
     }
     
     return true;
@@ -118,7 +115,7 @@ bool CardinalityConstraintPropagator::onAssign(Axiom* axiom, Lit lit) {
                 trace(cc, 15, "Infer " << l)
                 assert(reason[var(l)] == NULL);
                 reason[var(l)] = &cc;
-                solver.uncheckedEnqueueFromPropagator(l);
+                solver.uncheckedEnqueueFromPropagator(l, this);
             }
             else if(v == l_False && solver.level(var(l)) > 0 && solver.assignedIndex(l) > solver.assignedIndex(lit)) {
                 while(++i < cc.lits.size()) {

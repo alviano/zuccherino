@@ -31,8 +31,9 @@ public:
     void parse(gzFile in);
     
     virtual Var newVar(bool polarity = true, bool dvar = true);
+    virtual void onNewDecisionLevel(Lit lit);
     
-    void uncheckedEnqueueFromPropagator(Lit lit);
+    void uncheckedEnqueueFromPropagator(Lit lit, Propagator* propagator);
     
     using Glucose::SimpSolver::decisionLevel;
     using Glucose::SimpSolver::level;
@@ -68,6 +69,7 @@ protected:
 private:
     vec<Propagator*> propagators;
     vec<Lit> conflictFromPropagators;
+    vec<Propagator*> reasonFromPropagators;
 };
 
 } // zuccherino

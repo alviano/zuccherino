@@ -36,7 +36,7 @@ public:
     void onNewVar();
     
     void getConflict(vec<Lit>& ret);
-    bool hasReason(Lit lit, vec<Lit>& ret);
+    void getReason(Lit lit, vec<Lit>& ret);
 
 protected:
     struct Axiom {

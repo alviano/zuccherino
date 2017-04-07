@@ -99,10 +99,9 @@ void Propagator::getConflict(vec<Lit>& ret) {
     conflictClause.moveTo(ret);
 }
 
-bool Propagator::hasReason(Lit lit, vec<Lit>& ret) {
-    if(reason[var(lit)] == NULL) return false;
+void Propagator::getReason(Lit lit, vec<Lit>& ret) {
+    assert(reason[var(lit)] != NULL);
     getReason(reason[var(lit)], lit, ret);
-    return true;
 }
 
 void Propagator::add(Axiom* axiom) {

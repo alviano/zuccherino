@@ -313,7 +313,6 @@ lbool MaxSAT::solve() {
     hardening();
     
     int64_t limit = computeNextLimit(INT64_MAX);
-    
     for(;;) {
         hardening();
         setAssumptions(limit);
