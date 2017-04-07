@@ -21,6 +21,7 @@
 
 Glucose::IntOption option_trace_solver("TRACE", "trace-solver", "Set trace level of solver (class GlucoseWrapper).", 0, Glucose::IntRange(0, INT32_MAX));
 Glucose::IntOption option_trace_cc("TRACE", "trace-cc", "Set trace level of cardinality constraints.", 0, Glucose::IntRange(0, INT32_MAX));
+Glucose::IntOption option_trace_wc("TRACE", "trace-wc", "Set trace level of weight constraints.", 0, Glucose::IntRange(0, INT32_MAX));
 Glucose::IntOption option_trace_maxsat("TRACE", "trace-maxsat", "Set trace level of MaxSAT solver.", 0, Glucose::IntRange(0, INT32_MAX));
 
 #endif

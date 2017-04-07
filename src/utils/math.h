@@ -15,30 +15,28 @@
  *
  */
 
-#ifndef zuccherino_trace_h
-#define zuccherino_trace_h
+#ifndef zuccherino_math_h
+#define zuccherino_math_h
 
-#ifndef TRACE_ON
-    #define trace(type, level, msg)
-#else
+namespace zuccherino {
+    
+template<typename T>
+T gcd(T a, T b) {
+    assert(a > 0);
+    assert(b > 0);
+    
+    if(a <= b) b = b % a;
 
-#include <cstdio>
-#include <string>
-
-#include <utils/Options.h>
-
-extern Glucose::IntOption option_trace_solver;
-extern Glucose::IntOption option_trace_cc;
-extern Glucose::IntOption option_trace_wc;
-extern Glucose::IntOption option_trace_maxsat;
-
-#define trace(type, level, msg) \
-    if(option_trace_##type >= level) {\
-        std::cerr << "[" << #type << "]";\
-        for(int __trace_i__ = 0; __trace_i__ < level; __trace_i__++) std::cerr << " ";\
-        std::cerr << msg << std::endl;\
+    int64_t tmp;
+    while(b > 0) {
+        tmp = a;
+        a = b;
+        b = tmp % b;
     }
+    assert(a >= 1);
+    return a;
+}
 
-#endif
+}
 
 #endif
