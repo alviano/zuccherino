@@ -26,6 +26,10 @@
 #include <iostream>
 #include <sstream>
 
+#ifndef NDEBUG
+    #include <typeinfo>
+#endif
+
 using std::cin;
 using std::cout;
 using std::cerr;
@@ -45,8 +49,6 @@ using Glucose::mkLit;
 
 namespace zuccherino {
 
-const CRef CRef_MoreConflict = CRef_Undef - 1;
-    
 }
 
 #endif

@@ -40,7 +40,7 @@ public:
     
 private:
     int nInputVars;
-    CardinalityConstraintHandler ccH;
+    CardinalityConstraintPropagator ccPropagator;
     
     vec<int64_t> weights;
     vec<Lit> softLits;

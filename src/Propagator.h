@@ -22,47 +22,46 @@
 
 namespace zuccherino {
 
-class Propagator {
-public:
-    virtual inline ~Propagator() {}
-    virtual void notifyFor(vec<Lit>& onAssign, vec<Lit>& onUnassign) = 0;
-};
-
 class GlucoseWrapper;
 
-class PropagatorHandler {
+class Propagator {
 public:
-    PropagatorHandler(GlucoseWrapper* solver);
-    virtual ~PropagatorHandler();
+    Propagator(GlucoseWrapper& solver);
+    virtual ~Propagator();
     
-    void onCancel(int previouslyAsssigned);
-    CRef propagate();
+    void onCancel(int previouslyAssigned);
+    bool propagate();
     
     void onNewVar();
     
-    bool hasConflict(vec<Lit>& ret);
+    void getConflict(vec<Lit>& ret);
     bool hasReason(Lit lit, vec<Lit>& ret);
 
 protected:
-    vec<Lit> conflict;
-    vec<Propagator*> reason;
-    GlucoseWrapper* solver;
+    struct Axiom {
+        virtual ~Axiom() {}
+    };
+    
+    vec<Lit> conflictClause;
+    vec<Axiom*> reason;
+    GlucoseWrapper& solver;
 
-    void add(Propagator* propagator);
+    void add(Axiom* axiom);
 
-    virtual CRef onAssign(Lit lit, Propagator* propagator) = 0;
-    virtual void onUnassign(Lit lit, Propagator* propagator) = 0;
-    virtual void getReason(Lit lit, Propagator* propagator, vec<Lit>& res) = 0;
+    virtual void notifyFor(Axiom* axiom, vec<Lit>& onAssign, vec<Lit>& onUnassign) = 0;
+    virtual bool onAssign(Axiom* axiom, Lit lit) = 0;
+    virtual void onUnassign(Axiom* axiom, Lit lit) = 0;
+    virtual void getReason(Axiom* axiom, Lit lit, vec<Lit>& res) = 0;
     
 private:
     int nextToPropagate;
-    vec<Propagator*> propagators;
-    vec< vec<Propagator*> > observed[4];
+    vec<Axiom*> axioms;
+    vec< vec<Axiom*> > observed[4];
     
-    vec<Propagator*>* partialUnassignVector;
+    vec<Axiom*>* partialUnassignVector;
     int partialUnassignIndex;
     
-    CRef propagate(Lit lit);
+    bool propagate(Lit lit);
 };
 
 }

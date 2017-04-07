@@ -22,27 +22,9 @@
 
 namespace zuccherino {
     
-class CardinalityConstraint : public Propagator {
-    friend ostream& operator<<(ostream& out, const CardinalityConstraint& cc) { return out << cc.toString(); }
-    friend class CardinalityConstraintHandler;
+class CardinalityConstraintPropagator: public Propagator {
 public:
-    virtual ~CardinalityConstraint() { lits.clear(); }
-    
-    virtual void notifyFor(vec<Lit>& onAssign, vec<Lit>& onUnassign);
-    
-    string toString() const;
-    
-private:
-    vec<Lit> lits;
-    int loosable;
-    
-    inline CardinalityConstraint() {}
-    inline CardinalityConstraint(vec<Lit>& lits_, int bound) { assert(bound >= 0); lits_.moveTo(lits); loosable = lits.size() - bound; }
-};
-
-class CardinalityConstraintHandler : public PropagatorHandler {
-public:
-    inline CardinalityConstraintHandler(GlucoseWrapper* solver) : PropagatorHandler(solver) {}
+    inline CardinalityConstraintPropagator(GlucoseWrapper& solver) : Propagator(solver) {}
 
     bool addGreaterEqual(vec<Lit>& lits, int bound);
     bool addLessEqual(vec<Lit>& lits, int bound);
@@ -51,15 +33,32 @@ public:
     inline bool addLess(vec<Lit>& lits, int bound) { return addLessEqual(lits, bound - 1); }
 
 protected:
-    virtual CRef onAssign(Lit lit, Propagator* propagator);
-    virtual void onUnassign(Lit lit, Propagator* propagator);
-    virtual void getReason(Lit lit, Propagator* propagator, vec<Lit>& ret);
+    struct CardinalityConstraint : public Axiom {
+        friend ostream& operator<<(ostream& out, const CardinalityConstraint& cc) { return out << cc.toString(); }
+        string toString() const;
+
+        vec<Lit> lits;
+        int loosable;
+        
+        inline CardinalityConstraint(vec<Lit>& lits_, int bound) { assert(bound >= 0); lits_.moveTo(lits); loosable = lits.size() - bound; }
+    };
+    
+    virtual void notifyFor(Axiom* axiom, vec<Lit>& onAssign, vec<Lit>& onUnassign);
+    virtual bool onAssign(Axiom* axiom, Lit lit);
+    virtual void onUnassign(Axiom* axiom, Lit lit);
+    virtual void getReason(Axiom* axiom, Lit lit, vec<Lit>& ret);
 
 private:
-    CardinalityConstraint& cast(Propagator* propagator) const;
+    inline CardinalityConstraint& cast(Axiom* axiom) const;
     
     void simplify(CardinalityConstraint& cc);
 };
+
+CardinalityConstraintPropagator::CardinalityConstraint& CardinalityConstraintPropagator::cast(Axiom* axiom) const {
+    assert(axiom != NULL);
+    assert(typeid(*axiom) == typeid(CardinalityConstraint));
+    return (*static_cast<CardinalityConstraint*>(axiom));
+}
 
 }
 

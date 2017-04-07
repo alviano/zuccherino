@@ -49,23 +49,24 @@ public:
 
     virtual void cancelUntil(int level);
 
-    virtual CRef morePropagate();
-    virtual bool moreConflict(vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
-    virtual bool moreReason(Lit lit, vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
-    virtual bool moreReason(Lit lit);
+    virtual bool propagatePropagators();
+    virtual bool conflictPropagators(vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
+    virtual bool reasonPropagators(Lit lit, vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
+    virtual bool reasonPropagators(Lit lit);
     
-    inline void add(PropagatorHandler* ph) { assert(ph != NULL); propagatorHandlers.push(ph); }
+    inline void add(Propagator* ph) { assert(ph != NULL); propagators.push(ph); }
     
 protected:
     vec<int> trailPosition;
     int nTrailPosition;
     
-    void processConflict(const vec<Lit>& conflict, vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
-    void processReason(const vec<Lit>& clause, vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
-    void processReason(const vec<Lit>& clause);
+    void processConflictPropagators(vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
+    void processReasonPropagators(const vec<Lit>& clause, vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
+    void processReasonPropagators(const vec<Lit>& clause);
 
 private:
-    vec<PropagatorHandler*> propagatorHandlers;
+    vec<Propagator*> propagators;
+    vec<Lit> conflictFromPropagators;
 };
 
 } // zuccherino

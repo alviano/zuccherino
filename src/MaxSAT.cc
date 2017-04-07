@@ -24,7 +24,7 @@ extern Glucose::BoolOption option_print_model;
 
 namespace zuccherino {
 
-MaxSAT::MaxSAT() : ccH(this), lowerBound(0), upperBound(INT64_MAX) {
+MaxSAT::MaxSAT() : ccPropagator(*this), lowerBound(0), upperBound(INT64_MAX) {
 }
 
 void MaxSAT::interrupt() { 
@@ -303,7 +303,7 @@ void MaxSAT::processConflict(int64_t weight) {
         lits.push(~mkLit(nVars()-1));
     }
     
-    ccH.addGreaterEqual(lits, bound);
+    ccPropagator.addGreaterEqual(lits, bound);
 }
 
 lbool MaxSAT::solve() {

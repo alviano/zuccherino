@@ -21,14 +21,13 @@
 
 namespace zuccherino {
 
-PropagatorHandler::PropagatorHandler(GlucoseWrapper* solver_) : solver(solver_), nextToPropagate(0), partialUnassignVector(NULL) {
-    assert(solver != NULL);
-    solver->add(this);
+Propagator::Propagator(GlucoseWrapper& solver_) : solver(solver_), nextToPropagate(0), partialUnassignVector(NULL) {
+    solver.add(this);
 }
 
-PropagatorHandler::~PropagatorHandler() {
-    for(int i = 0; i < propagators.size(); i++) delete propagators[i];
-    propagators.clear();
+Propagator::~Propagator() {
+    for(int i = 0; i < axioms.size(); i++) delete axioms[i];
+    axioms.clear();
     observed[0].clear();
     observed[1].clear();
     observed[2].clear();
@@ -36,80 +35,77 @@ PropagatorHandler::~PropagatorHandler() {
     reason.clear();
 }
 
-void PropagatorHandler::onCancel(int previouslyAssigned) {
-    while(previouslyAssigned > solver->nAssigns()) {
-        Lit lit = solver->assigned(--previouslyAssigned);
+void Propagator::onCancel(int previouslyAssigned) {
+    while(previouslyAssigned > solver.nAssigns()) {
+        Lit lit = solver.assigned(--previouslyAssigned);
         reason[var(lit)] = NULL;
     }
     
     if(partialUnassignVector != NULL) {
-        assert_msg(nextToPropagate > solver->nAssigns(), nextToPropagate << ", " << solver->nAssigns());
-        Lit lit = solver->assigned(--nextToPropagate);
-        vec<Propagator*>& v = *partialUnassignVector;
-        while(partialUnassignIndex >= 0) onUnassign(lit, v[partialUnassignIndex--]);
+        assert_msg(nextToPropagate > solver.nAssigns(), nextToPropagate << ", " << solver.nAssigns());
+        Lit lit = solver.assigned(--nextToPropagate);
+        vec<Axiom*>& v = *partialUnassignVector;
+        while(partialUnassignIndex >= 0) onUnassign(v[partialUnassignIndex--], lit);
         partialUnassignVector = NULL;
     }
     
-    while(nextToPropagate > solver->nAssigns()) {
-        Lit lit = solver->assigned(--nextToPropagate);
-        vec<Propagator*>& v = observed[2+sign(lit)][var(lit)];
-        for(int i = 0; i < v.size(); i++) onUnassign(lit, v[i]);
+    while(nextToPropagate > solver.nAssigns()) {
+        Lit lit = solver.assigned(--nextToPropagate);
+        vec<Axiom*>& v = observed[2+sign(lit)][var(lit)];
+        for(int i = 0; i < v.size(); i++) onUnassign(v[i], lit);
     }
 }
 
-CRef PropagatorHandler::propagate() {
-    int n = solver->nAssigns();
+bool Propagator::propagate() {
+    int n = solver.nAssigns();
     while(nextToPropagate < n) {
-        Lit lit = solver->assigned(nextToPropagate++);
-        CRef ret = propagate(lit);
-        if(ret != CRef_Undef) return ret;
-        if(solver->nAssigns() > n) break;
+        Lit lit = solver.assigned(nextToPropagate++);
+        if(!propagate(lit)) return false;
+        if(solver.nAssigns() > n) break;
     }
     return CRef_Undef;
 }
 
-CRef PropagatorHandler::propagate(Lit lit) {
-    vec<Propagator*>& v = observed[sign(lit)][var(lit)];
+bool Propagator::propagate(Lit lit) {
+    vec<Axiom*>& v = observed[sign(lit)][var(lit)];
     for(int i = 0; i < v.size(); i++) {
-        CRef ret = onAssign(lit, v[i]);
-        if(ret == CRef_Undef) continue;
+        if(onAssign(v[i], lit)) continue;
         assert(partialUnassignVector == NULL);
         partialUnassignVector = &v;
         partialUnassignIndex = i;
-        return ret;
+        return false;
     }
-    return CRef_Undef;
-}
-
-bool PropagatorHandler::hasConflict(vec<Lit>& ret) {
-    if(conflict.size() == 0) return false;
-    conflict.moveTo(ret);
     return true;
 }
 
-bool PropagatorHandler::hasReason(Lit lit, vec<Lit>& ret) {
+void Propagator::getConflict(vec<Lit>& ret) {
+    assert(conflictClause.size() > 0);
+    conflictClause.moveTo(ret);
+}
+
+bool Propagator::hasReason(Lit lit, vec<Lit>& ret) {
     if(reason[var(lit)] == NULL) return false;
-    getReason(lit, reason[var(lit)], ret);
+    getReason(reason[var(lit)], lit, ret);
     return true;
 }
 
-void PropagatorHandler::add(Propagator* propagator) {
+void Propagator::add(Axiom* axiom) {
     vec<Lit> a, u;
-    propagator->notifyFor(a, u);
+    this->notifyFor(axiom, a, u);
     for(int i = 0; i < a.size(); i++) {
         Lit lit = a[i];
-        observed[sign(lit)][var(lit)].push(propagator);
-        solver->setFrozen(var(lit), true);
+        observed[sign(lit)][var(lit)].push(axiom);
+        solver.setFrozen(var(lit), true);
     }
     for(int i = 0; i < u.size(); i++) {
         Lit lit = u[i];
-        observed[2+sign(lit)][var(lit)].push(propagator);
-        solver->setFrozen(var(lit), true);
+        observed[2+sign(lit)][var(lit)].push(axiom);
+        solver.setFrozen(var(lit), true);
     }
-    propagators.push(propagator);
+    axioms.push(axiom);
 }
 
-void PropagatorHandler::onNewVar() {
+void Propagator::onNewVar() {
     observed[0].push();
     observed[1].push();
     observed[2].push();
