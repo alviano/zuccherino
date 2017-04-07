@@ -56,6 +56,22 @@ void Propagator::onCancel(int previouslyAssigned) {
     }
 }
 
+bool Propagator::simplify() {
+    int n = solver.nAssigns();
+    while(nextToPropagate < n) {
+        Lit lit = solver.assigned(nextToPropagate++);
+        if(!simplify(lit)) return false;
+        if(solver.nAssigns() > n) break;
+    }
+    return true;    
+}
+
+bool Propagator::simplify(Lit lit) {
+    vec<Axiom*>& v = observed[sign(lit)][var(lit)];
+    for(int i = 0; i < v.size(); i++) if(!onSimplify(v[i], lit)) return false;
+    return true;
+}
+
 bool Propagator::propagate() {
     int n = solver.nAssigns();
     while(nextToPropagate < n) {
@@ -63,7 +79,7 @@ bool Propagator::propagate() {
         if(!propagate(lit)) return false;
         if(solver.nAssigns() > n) break;
     }
-    return CRef_Undef;
+    return true;
 }
 
 bool Propagator::propagate(Lit lit) {
@@ -91,7 +107,7 @@ bool Propagator::hasReason(Lit lit, vec<Lit>& ret) {
 
 void Propagator::add(Axiom* axiom) {
     vec<Lit> a, u;
-    this->notifyFor(axiom, a, u);
+    notifyFor(axiom, a, u);
     for(int i = 0; i < a.size(); i++) {
         Lit lit = a[i];
         observed[sign(lit)][var(lit)].push(axiom);

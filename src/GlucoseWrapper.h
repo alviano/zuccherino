@@ -49,6 +49,7 @@ public:
 
     virtual void cancelUntil(int level);
 
+    virtual bool simplifyPropagators();
     virtual bool propagatePropagators();
     virtual bool conflictPropagators(vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
     virtual bool reasonPropagators(Lit lit, vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);

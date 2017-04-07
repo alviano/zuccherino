@@ -30,6 +30,7 @@ public:
     virtual ~Propagator();
     
     void onCancel(int previouslyAssigned);
+    bool simplify();
     bool propagate();
     
     void onNewVar();
@@ -49,6 +50,7 @@ protected:
     void add(Axiom* axiom);
 
     virtual void notifyFor(Axiom* axiom, vec<Lit>& onAssign, vec<Lit>& onUnassign) = 0;
+    virtual bool onSimplify(Axiom* axiom, Lit lit) = 0;
     virtual bool onAssign(Axiom* axiom, Lit lit) = 0;
     virtual void onUnassign(Axiom* axiom, Lit lit) = 0;
     virtual void getReason(Axiom* axiom, Lit lit, vec<Lit>& res) = 0;
@@ -61,6 +63,7 @@ private:
     vec<Axiom*>* partialUnassignVector;
     int partialUnassignIndex;
     
+    bool simplify(Lit lit);
     bool propagate(Lit lit);
 };
 

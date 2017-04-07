@@ -141,7 +141,22 @@ void GlucoseWrapper::uncheckedEnqueueFromPropagator(Lit lit) {
     nTrailPosition++;
 }
 
+bool GlucoseWrapper::simplifyPropagators() {
+    assert(decisionLevel() == 0);
+    while(nTrailPosition < nAssigns()) { trailPosition[var(assigned(nTrailPosition))] = nTrailPosition; nTrailPosition++; }
+    
+    int n = nAssigns();
+    for(int i = 0; i < propagators.size(); i++) {
+        if(!propagators[i]->simplify()) return false;
+        if(nAssigns() < n) break;
+    }
+    return true;
+}
+
 bool GlucoseWrapper::propagatePropagators() {
+    if(decisionLevel() == 0) return simplifyPropagators();
+    
+    assert(decisionLevel() > 0);
     while(nTrailPosition < nAssigns()) { trailPosition[var(assigned(nTrailPosition))] = nTrailPosition; nTrailPosition++; }
     
     int n = nAssigns();

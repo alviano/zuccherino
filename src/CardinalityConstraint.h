@@ -44,14 +44,13 @@ protected:
     };
     
     virtual void notifyFor(Axiom* axiom, vec<Lit>& onAssign, vec<Lit>& onUnassign);
+    virtual bool onSimplify(Axiom* axiom, Lit lit);
     virtual bool onAssign(Axiom* axiom, Lit lit);
     virtual void onUnassign(Axiom* axiom, Lit lit);
     virtual void getReason(Axiom* axiom, Lit lit, vec<Lit>& ret);
 
 private:
     inline CardinalityConstraint& cast(Axiom* axiom) const;
-    
-    void simplify(CardinalityConstraint& cc);
 };
 
 CardinalityConstraintPropagator::CardinalityConstraint& CardinalityConstraintPropagator::cast(Axiom* axiom) const {

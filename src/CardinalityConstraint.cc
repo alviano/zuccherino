@@ -76,14 +76,41 @@ bool CardinalityConstraintPropagator::addEqual(vec<Lit>& lits, int bound) {
     return addGreaterEqual(lits, bound) && addLessEqual(tmp, bound);
 }
 
-bool CardinalityConstraintPropagator::onAssign(Axiom* axiom, Lit lit) {
+bool CardinalityConstraintPropagator::onSimplify(Axiom* axiom, Lit lit) {
+    assert(solver.decisionLevel() == 0);
     CardinalityConstraint& cc = cast(axiom);
     
     trace(cc, 10, "Propagate " << lit << "@" << solver.decisionLevel() << " on " << cc);
     cc.loosable--;
     
     if(cc.loosable == 0) {
-        if(solver.decisionLevel() == 0) { simplify(cc); return CRef_Undef; }
+        for(int i = 0; i < cc.lits.size(); i++) {
+            Lit l = cc.lits[i];
+            lbool v = solver.value(l);
+            if(v == l_Undef) {
+                trace(cc, 15, "Infer " << l)
+                solver.addClause(l);
+            }
+        }
+        cc.lits.clear();
+    }
+    else if(cc.loosable < 0) {
+        assert(solver.decisionLevel() == 0);
+        return false;
+    }
+    
+    return true;
+}
+
+bool CardinalityConstraintPropagator::onAssign(Axiom* axiom, Lit lit) {
+    assert(solver.decisionLevel() > 0);
+    CardinalityConstraint& cc = cast(axiom);
+    
+    trace(cc, 10, "Propagate " << lit << "@" << solver.decisionLevel() << " on " << cc);
+    cc.loosable--;
+    assert(cc.loosable >= 0);
+    
+    if(cc.loosable == 0) {
         for(int i = 0; i < cc.lits.size(); i++) {
             Lit l = cc.lits[i];
             lbool v = solver.value(l);
@@ -105,25 +132,8 @@ bool CardinalityConstraintPropagator::onAssign(Axiom* axiom, Lit lit) {
             }
         }
     }
-    else if(cc.loosable < 0) {
-        assert(solver.decisionLevel() == 0);
-        solver.addClause(~lit);
-    }
     
     return true;
-}
-
-void CardinalityConstraintPropagator::simplify(CardinalityConstraint& cc) {
-    assert(cc.loosable == 0);
-    for(int i = 0; i < cc.lits.size(); i++) {
-        Lit l = cc.lits[i];
-        lbool v = solver.value(l);
-        if(v == l_Undef) {
-            trace(cc, 15, "Infer " << l)
-            solver.addClause(l);
-        }
-    }
-    cc.lits.clear();
 }
 
 void CardinalityConstraintPropagator::onUnassign(Axiom* axiom, Lit /*lit*/) {
