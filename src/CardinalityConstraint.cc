@@ -79,23 +79,13 @@ bool CardinalityConstraintHandler::addEqual(vec<Lit>& lits, int bound) {
 CRef CardinalityConstraintHandler::onAssign(Lit lit, Propagator* propagator) {
     CardinalityConstraint& cc = cast(propagator);
     
-    // update state
     trace(cc, 10, "Propagate " << lit << "@" << solver->decisionLevel() << " on " << cc);
     cc.loosable--;
     
-    // check conflict
-    if(cc.loosable < 0) {
-        trace(cc, 8, "Conflict while propagating " << lit << " on " << cc);
-        getReason(~lit, propagator, conflict);
-        return CRef_MoreConflict;
-    }
-    
-    // check inferences
     if(cc.loosable == 0) {
+        if(solver->decisionLevel() == 0) { simplify(cc); return CRef_Undef; }
         for(int i = 0; i < cc.lits.size(); i++) {
             Lit l = cc.lits[i];
-            if(l == ~lit) continue;
-            
             lbool v = solver->value(l);
             if(v == l_Undef) {
                 trace(cc, 15, "Infer " << l)
@@ -103,13 +93,37 @@ CRef CardinalityConstraintHandler::onAssign(Lit lit, Propagator* propagator) {
                 reason[var(l)] = &cc;
                 solver->uncheckedEnqueueFromPropagator(l);
             }
-//            else if(v == l_False) {
-//                trace(cc, 8, "Conflict on " << l << " while propagating " << lit << " on " << cc);
-//            }
+            else if(v == l_False && solver->level(var(l)) > 0 && solver->assignedIndex(l) > solver->assignedIndex(lit)) {
+                while(++i < cc.lits.size()) {
+                    if(solver->value(cc.lits[i]) == l_False && solver->level(var(l)) > 0 && solver->assignedIndex(cc.lits[i]) > solver->assignedIndex(lit) && solver->assignedIndex(cc.lits[i]) < solver->assignedIndex(l)) {
+                        l = cc.lits[i];
+                    }
+                }
+                trace(cc, 8, "Conflict on " << l << " while propagating " << lit << " on " << cc);
+                getReason(l, propagator, conflict);
+                return CRef_MoreConflict;
+            }
         }
+    }
+    else if(cc.loosable < 0) {
+        assert(solver->decisionLevel() == 0);
+        solver->addClause(~lit);
     }
     
     return CRef_Undef;
+}
+
+void CardinalityConstraintHandler::simplify(CardinalityConstraint& cc) {
+    assert(cc.loosable == 0);
+    for(int i = 0; i < cc.lits.size(); i++) {
+        Lit l = cc.lits[i];
+        lbool v = solver->value(l);
+        if(v == l_Undef) {
+            trace(cc, 15, "Infer " << l)
+            solver->addClause(l);
+        }
+    }
+    cc.lits.clear();
 }
 
 void CardinalityConstraintHandler::onUnassign(Lit /*lit*/, Propagator* propagator) {
@@ -127,7 +141,7 @@ void CardinalityConstraintHandler::getReason(Lit lit, Propagator* propagator, ve
     ret.push(lit);
     for(int i = 0; i < cc.lits.size(); i++) {
         Lit l = cc.lits[i];
-        if(solver->value(l) == l_False && solver->assignedIndex(l) < solver->assignedIndex(lit))
+        if(solver->value(l) == l_False && solver->level(var(l)) > 0 && solver->assignedIndex(l) < solver->assignedIndex(lit))
             ret.push(l);
     }
     trace(cc, 25, "Reason: " << ret);

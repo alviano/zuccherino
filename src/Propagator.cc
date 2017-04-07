@@ -43,7 +43,7 @@ void PropagatorHandler::onCancel(int previouslyAssigned) {
     }
     
     if(partialUnassignVector != NULL) {
-        assert(nextToPropagate > solver->nAssigns());
+        assert_msg(nextToPropagate > solver->nAssigns(), nextToPropagate << ", " << solver->nAssigns());
         Lit lit = solver->assigned(--nextToPropagate);
         vec<Propagator*>& v = *partialUnassignVector;
         while(partialUnassignIndex >= 0) onUnassign(lit, v[partialUnassignIndex--]);

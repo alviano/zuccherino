@@ -57,6 +57,8 @@ protected:
 
 private:
     CardinalityConstraint& cast(Propagator* propagator) const;
+    
+    void simplify(CardinalityConstraint& cc);
 };
 
 }

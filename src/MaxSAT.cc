@@ -314,9 +314,10 @@ lbool MaxSAT::solve() {
     
     int64_t limit = computeNextLimit(INT64_MAX);
     
-    while(lowerBound < upperBound) {
+    for(;;) {
         hardening();
         setAssumptions(limit);
+        if(lowerBound == upperBound) break;
         status = solveWithBudget();
         if(status == l_True) { 
             updateUpperBound();
@@ -327,9 +328,9 @@ lbool MaxSAT::solve() {
             trace(maxsat, 2, "UNSAT! Conflict of size " << conflict.size());
             trace(maxsat, 100, "Conflict: " << conflict);
             
-            if(conflict.size() == 0) { lowerBound = upperBound; continue; }
+            if(conflict.size() == 0) { lowerBound = upperBound; limit = 1; continue; }
 
-            assert(computeConflictWeight() == limit);
+            assert_msg(computeConflictWeight() == limit, "computeConflictWeight()=" << computeConflictWeight() << "; limit=" << limit << "; conflict=" << conflict);
             shrinkConflict(limit);
             trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
 
@@ -346,8 +347,6 @@ lbool MaxSAT::solve() {
 
     if(upperBound == INT64_MAX) { cout << "s UNSATISFIABLE" << endl; return l_False; }
     
-    hardening();
-    setAssumptions(1);
     assert(softLits.size() == 0);
     
     cout << "o " << lowerBound << endl;
