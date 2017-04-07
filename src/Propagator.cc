@@ -35,12 +35,7 @@ Propagator::~Propagator() {
     reason.clear();
 }
 
-void Propagator::onCancel(int previouslyAssigned) {
-    while(previouslyAssigned > solver.nAssigns()) {
-        Lit lit = solver.assigned(--previouslyAssigned);
-        reason[var(lit)] = NULL;
-    }
-    
+void Propagator::onCancel() {
     if(partialUnassignVector != NULL) {
         assert_msg(nextToPropagate > solver.nAssigns(), nextToPropagate << ", " << solver.nAssigns());
         Lit lit = solver.assigned(--nextToPropagate);
@@ -118,6 +113,15 @@ void Propagator::add(Axiom* axiom) {
         solver.setFrozen(var(lit), true);
     }
     axioms.push(axiom);
+}
+
+void Propagator::uncheckedEnqueue(Lit lit, Axiom* axiom) {
+    reason[var(lit)] = axiom;
+    solver.uncheckedEnqueueFromPropagator(lit, this);
+}
+
+void Propagator::setConflict(Lit lit, Axiom* axiom) {
+    getReason(axiom, lit, conflictClause);
 }
 
 void Propagator::onNewVar() {

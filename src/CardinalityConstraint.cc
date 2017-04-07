@@ -113,9 +113,7 @@ bool CardinalityConstraintPropagator::onAssign(Axiom* axiom, Lit lit) {
             lbool v = solver.value(l);
             if(v == l_Undef) {
                 trace(cc, 15, "Infer " << l)
-                assert(reason[var(l)] == NULL);
-                reason[var(l)] = &cc;
-                solver.uncheckedEnqueueFromPropagator(l, this);
+                uncheckedEnqueue(l, axiom);
             }
             else if(v == l_False && solver.level(var(l)) > 0 && solver.assignedIndex(l) > solver.assignedIndex(lit)) {
                 while(++i < cc.lits.size()) {
@@ -124,7 +122,7 @@ bool CardinalityConstraintPropagator::onAssign(Axiom* axiom, Lit lit) {
                     }
                 }
                 trace(cc, 8, "Conflict on " << l << " while propagating " << lit << " on " << cc);
-                getReason(axiom, l, conflictClause);
+                setConflict(l, axiom);
                 return false;
             }
         }

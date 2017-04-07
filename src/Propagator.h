@@ -29,7 +29,7 @@ public:
     Propagator(GlucoseWrapper& solver);
     virtual ~Propagator();
     
-    void onCancel(int previouslyAssigned);
+    void onCancel();
     bool simplify();
     bool propagate();
     
@@ -43,11 +43,11 @@ protected:
         virtual ~Axiom() {}
     };
     
-    vec<Lit> conflictClause;
-    vec<Axiom*> reason;
     GlucoseWrapper& solver;
 
     void add(Axiom* axiom);
+    void uncheckedEnqueue(Lit lit, Axiom* axiom);
+    void setConflict(Lit lit, Axiom* axiom);
 
     virtual void notifyFor(Axiom* axiom, vec<Lit>& onAssign, vec<Lit>& onUnassign) = 0;
     virtual bool onSimplify(Axiom* axiom, Lit lit) = 0;
@@ -59,6 +59,9 @@ private:
     int nextToPropagate;
     vec<Axiom*> axioms;
     vec< vec<Axiom*> > observed[4];
+    
+    vec<Axiom*> reason;
+    vec<Lit> conflictClause;
     
     vec<Axiom*>* partialUnassignVector;
     int partialUnassignIndex;

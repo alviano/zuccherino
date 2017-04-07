@@ -133,10 +133,9 @@ void GlucoseWrapper::learnClauseFromModel() {
 
 void GlucoseWrapper::cancelUntil(int level) {
     trace(solver, 5, "Cancel until " << level);
-    int oldSize = nAssigns();
     Glucose::SimpSolver::cancelUntil(level);
     nTrailPosition = nAssigns();
-    for(int i = 0; i < propagators.size(); i++) propagators[i]->onCancel(oldSize);
+    for(int i = 0; i < propagators.size(); i++) propagators[i]->onCancel();
 }
 
 void GlucoseWrapper::uncheckedEnqueueFromPropagator(Lit lit, Propagator* propagator) {
