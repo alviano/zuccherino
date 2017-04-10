@@ -37,7 +37,7 @@ SRCS = $(shell find $(SOURCE_DIR) -name '*.cc')
 BINARIES = $(patsubst $(SOURCE_DIR)%.cpp,$(BUILD_DIR)%, $(APPS))
 
 OBJS = $(patsubst $(SOURCE_DIR)%.cc,$(BUILD_DIR)%.o, $(SRCS))
-DEPS = $(patsubst $(SOURCE_DIR)%.cc,$(BUILD_DIR)%.d, $(SRCS))
+DEPS = $(patsubst $(SOURCE_DIR)%.cc,$(BUILD_DIR)%.d, $(SRCS)) $(patsubst $(SOURCE_DIR)%.cpp,$(BUILD_DIR)%.d, $(APPS))
 
 all: $(BINARIES)
 
@@ -55,7 +55,7 @@ $(BUILD_DIR)/%.d: $(SOURCE_DIR)/%.cpp
 	mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -MM -MT '$(@:.d=.o)' $< -MF $@
 	
-$(BINARIES): % : %.o %.d $(OBJS) $(DEPS)
+$(BINARIES): % : %.o $(OBJS)
 	$(LINK) $@.o $(OBJS) -o $@ $(LINKFLAGS) $(LIBS)
 
 static: $(BINARIES)
