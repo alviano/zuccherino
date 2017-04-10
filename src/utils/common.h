@@ -40,6 +40,7 @@ using std::string;
 using std::stringstream;
 
 using Glucose::Lit;
+using Glucose::lit_Undef;
 using Glucose::Var;
 using Glucose::vec;
 using Glucose::lbool;

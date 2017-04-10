@@ -50,10 +50,11 @@ protected:
     virtual void getReason(Lit lit, Axiom* axiom, vec<Lit>& ret);
 
 private:
-    inline CardinalityConstraint& cast(Axiom* axiom) const;
+    inline static CardinalityConstraint& cast(Axiom* axiom);
+    static void sort(vec<Lit>& lits);
 };
 
-CardinalityConstraintPropagator::CardinalityConstraint& CardinalityConstraintPropagator::cast(Axiom* axiom) const {
+CardinalityConstraintPropagator::CardinalityConstraint& CardinalityConstraintPropagator::cast(Axiom* axiom) {
     assert(axiom != NULL);
     assert(typeid(*axiom) == typeid(CardinalityConstraint));
     return (*static_cast<CardinalityConstraint*>(axiom));

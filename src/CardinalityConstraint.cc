@@ -40,7 +40,21 @@ bool CardinalityConstraintPropagator::addGreaterEqual(vec<Lit>& lits_, int bound
         else if(v == l_Undef) lits[j++] = lits[i];
     }
     lits.shrink_(lits.size()-j);
-
+    
+    sort(lits);
+    if(lits.size() > 0) {
+        Lit prec = lit_Undef;
+        int j = 0;
+        for(int i = 0; i < lits.size(); i++) {
+            Lit lit = lits[i];
+            if(prec == lit) continue;
+            else if(prec == ~lit) { bound--; j--; prec = lit_Undef; continue; }
+            lits[j++] = lits[i];
+            prec = lit;
+        }
+        lits.shrink_(lits.size() - j);
+    }
+    
     if(bound <= 0) return true;
     if(bound == 1) { return solver.addClause(lits); }
     if(bound == lits.size()) {
@@ -148,6 +162,25 @@ void CardinalityConstraintPropagator::getReason(Lit lit, Axiom* axiom, vec<Lit>&
             ret.push(l);
     }
     trace(cc, 25, "Reason: " << ret);
+}
+
+void CardinalityConstraintPropagator::sort(vec<Lit>& lits) {
+    if(lits.size() <= 1) return;
+    
+    int n = lits.size();
+    while(n > 0) {
+       int newn = 0;
+       for(int i = 1; i < n; i++) {
+          if(var(lits[i-1]) > var(lits[i])) {
+             Lit ltmp = lits[i-1];
+             lits[i-1] = lits[i];
+             lits[i] = ltmp;
+             
+             newn = i;
+          }
+       }
+       n = newn;
+    }
 }
 
 }
