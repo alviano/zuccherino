@@ -51,6 +51,9 @@ using Glucose::mkLit;
 
 namespace zuccherino {
 
+inline unsigned litToUnsigned(Lit lit) { return (var(lit) << 1) & sign(lit); }
+inline Lit unsignedToLit(unsigned lit) { return mkLit(lit >> 1, lit & 1); }
+    
 }
 
 #endif

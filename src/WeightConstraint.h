@@ -22,9 +22,9 @@
 
 namespace zuccherino {
     
-class WeightConstraintPropagator: public Propagator {
+class WeightConstraintPropagator: public AxiomsPropagator {
 public:
-    inline WeightConstraintPropagator(GlucoseWrapper& solver, CardinalityConstraintPropagator* ccPropagator_ = NULL) : Propagator(solver, true), ccPropagator(ccPropagator_) {}
+    inline WeightConstraintPropagator(GlucoseWrapper& solver, CardinalityConstraintPropagator* ccPropagator_ = NULL) : AxiomsPropagator(solver, true), ccPropagator(ccPropagator_) {}
 
     virtual void onNewVar();
 
@@ -37,13 +37,13 @@ public:
 protected:
     struct WeightConstraint : public Axiom {
         friend ostream& operator<<(ostream& out, const WeightConstraint& cc) { return out << cc.toString(); }
+        
+        WeightConstraint(vec<Lit>& lits, vec<int64_t>& weights, int64_t bound);
         string toString() const;
 
         vec<Lit> lits;
         vec<int64_t> weights;
         int64_t loosable;
-        
-        WeightConstraint(vec<Lit>& lits, vec<int64_t>& weights, int64_t bound);
     };
     
     virtual void notifyFor(Axiom* axiom, vec<Lit>& lits);
@@ -51,6 +51,7 @@ protected:
     virtual bool onAssign(Lit lit, int observedIndex);
     virtual void onUnassign(Lit lit, int observedIndex);
     virtual void getReason(Lit lit, Axiom* axiom, vec<Lit>& ret);
+    virtual void getConflictReason(Lit lit, Axiom* axiom, vec<Lit>& ret);
 
     int64_t sum(const vec<int64_t>& weights) const;
 
@@ -60,6 +61,8 @@ private:
     
     inline int getLitPos(Lit lit, int observedIndex) const;
     inline void pushLitPos(Lit lit, int observedIndex);
+    
+    void getReason_(Lit lit, int index, Axiom* axiom, vec<Lit>& ret);
     
     inline static WeightConstraint& cast(Axiom* axiom);
     static void sortByWeight(vec<Lit>& lits, vec<int64_t>& weights);

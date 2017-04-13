@@ -18,18 +18,21 @@
 #ifndef zuccherino_trace_h
 #define zuccherino_trace_h
 
-#ifndef TRACE_ON
-    #define trace(type, level, msg)
-#else
-
 #include <cstdio>
 #include <string>
 
 #include <utils/Options.h>
 
+namespace zuccherino {
+    
+#ifndef TRACE_ON
+    #define trace(type, level, msg)
+#else
+
 extern Glucose::IntOption option_trace_solver;
 extern Glucose::IntOption option_trace_cc;
 extern Glucose::IntOption option_trace_wc;
+extern Glucose::IntOption option_trace_sp;
 extern Glucose::IntOption option_trace_maxsat;
 
 #define trace(type, level, msg) \
@@ -40,5 +43,7 @@ extern Glucose::IntOption option_trace_maxsat;
     }
 
 #endif
+
+}
 
 #endif

@@ -43,7 +43,7 @@ string WeightConstraintPropagator::WeightConstraint::toString() const {
 }
 
 void WeightConstraintPropagator::onNewVar() {
-    Propagator::onNewVar();
+    AxiomsPropagator::onNewVar();
     litPos[0].push();
     litPos[1].push();
 }
@@ -277,6 +277,14 @@ void WeightConstraintPropagator::onUnassign(Lit lit, int observedIndex) {
 }
 
 void WeightConstraintPropagator::getReason(Lit lit, Axiom* axiom, vec<Lit>& ret) {
+    getReason_(lit, solver.assignedIndex(lit), axiom, ret);
+}
+
+void WeightConstraintPropagator::getConflictReason(Lit lit, Axiom* axiom, vec<Lit>& ret) {
+    getReason_(lit, solver.nAssigns(), axiom, ret);
+}
+
+void WeightConstraintPropagator::getReason_(Lit lit, int index, Axiom* axiom, vec<Lit>& ret) {
     assert(ret.size() == 0);
     WeightConstraint& cc = cast(axiom);
 
@@ -285,7 +293,7 @@ void WeightConstraintPropagator::getReason(Lit lit, Axiom* axiom, vec<Lit>& ret)
     ret.push(lit);
     for(int i = 0; i < cc.lits.size(); i++) {
         Lit l = cc.lits[i];
-        if(solver.value(l) == l_False && solver.level(var(l)) > 0 && solver.assignedIndex(l) < solver.assignedIndex(lit))
+        if(solver.value(l) == l_False && solver.level(var(l)) > 0 && solver.assignedIndex(l) < index)
             ret.push(l);
     }
     trace(wc, 25, "Reason: " << ret);

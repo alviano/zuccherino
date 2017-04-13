@@ -150,15 +150,22 @@ void CardinalityConstraintPropagator::onUnassign(Lit lit, int observedIndex) {
 }
 
 void CardinalityConstraintPropagator::getReason(Lit lit, Axiom* axiom, vec<Lit>& ret) {
+    getReason_(lit, solver.assignedIndex(lit), axiom, ret);
+}
+
+void CardinalityConstraintPropagator::getConflictReason(Lit lit, Axiom* axiom, vec<Lit>& ret) {
+    getReason_(lit, solver.nAssigns(), axiom, ret);
+}
+
+void CardinalityConstraintPropagator::getReason_(Lit lit, int index, Axiom* axiom, vec<Lit>& ret) {
     assert(ret.size() == 0);
     CardinalityConstraint& cc = cast(axiom);
-
     trace(cc, 20, "Computing reason for " << lit << " from " << cc);
 
     ret.push(lit);
     for(int i = 0; i < cc.lits.size(); i++) {
         Lit l = cc.lits[i];
-        if(solver.value(l) == l_False && solver.level(var(l)) > 0 && solver.assignedIndex(l) < solver.assignedIndex(lit))
+        if(solver.value(l) == l_False && solver.level(var(l)) > 0 && solver.assignedIndex(l) < index)
             ret.push(l);
     }
     trace(cc, 25, "Reason: " << ret);

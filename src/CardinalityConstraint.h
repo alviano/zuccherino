@@ -22,9 +22,9 @@
 
 namespace zuccherino {
     
-class CardinalityConstraintPropagator: public Propagator {
+class CardinalityConstraintPropagator: public AxiomsPropagator {
 public:
-    inline CardinalityConstraintPropagator(GlucoseWrapper& solver) : Propagator(solver, true) {}
+    inline CardinalityConstraintPropagator(GlucoseWrapper& solver) : AxiomsPropagator(solver, true) {}
 
     bool addGreaterEqual(vec<Lit>& lits, int bound);
     bool addLessEqual(vec<Lit>& lits, int bound);
@@ -35,12 +35,12 @@ public:
 protected:
     struct CardinalityConstraint : public Axiom {
         friend ostream& operator<<(ostream& out, const CardinalityConstraint& cc) { return out << cc.toString(); }
+        
+        inline CardinalityConstraint(vec<Lit>& lits_, int bound) { assert(bound >= 0); lits_.moveTo(lits); loosable = lits.size() - bound; }
         string toString() const;
 
         vec<Lit> lits;
         int loosable;
-        
-        inline CardinalityConstraint(vec<Lit>& lits_, int bound) { assert(bound >= 0); lits_.moveTo(lits); loosable = lits.size() - bound; }
     };
     
     virtual void notifyFor(Axiom* axiom, vec<Lit>& lits);
@@ -48,10 +48,13 @@ protected:
     virtual bool onAssign(Lit lit, int observedIndex);
     virtual void onUnassign(Lit lit, int observedIndex);
     virtual void getReason(Lit lit, Axiom* axiom, vec<Lit>& ret);
+    virtual void getConflictReason(Lit lit, Axiom* axiom, vec<Lit>& ret);
 
 private:
     inline static CardinalityConstraint& cast(Axiom* axiom);
     static void sort(vec<Lit>& lits);
+    
+    void getReason_(Lit lit, int index, Axiom* axiom, vec<Lit>& ret);
 };
 
 CardinalityConstraintPropagator::CardinalityConstraint& CardinalityConstraintPropagator::cast(Axiom* axiom) {

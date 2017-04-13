@@ -24,27 +24,44 @@ namespace zuccherino {
 
 class GlucoseWrapper;
 
+
 class Propagator {
 public:
-    Propagator(GlucoseWrapper& solver, bool notifyOnCancel = false);
-    virtual ~Propagator();
+    Propagator(GlucoseWrapper& solver);
+    virtual ~Propagator() {}
     
-    void onCancel();
-    bool simplify();
-    bool propagate();
+    virtual void onNewVar() = 0;
+    virtual void onCancel() = 0;
+    virtual bool simplify() = 0;
+    virtual bool propagate() = 0;
+    
+    virtual void getConflict(vec<Lit>& ret) = 0;
+    virtual void getReason(Lit lit, vec<Lit>& ret) = 0;
+
+protected:
+    GlucoseWrapper& solver;
+};
+
+
+class AxiomsPropagator : public Propagator {
+public:
+    AxiomsPropagator(GlucoseWrapper& solver, bool notifyOnCancel = false);
+    virtual ~AxiomsPropagator();
     
     virtual void onNewVar();
+    virtual void onCancel();
+    virtual bool simplify();
+    virtual bool propagate();
     
-    void getConflict(vec<Lit>& ret);
-    void getReason(Lit lit, vec<Lit>& ret);
+    virtual void getConflict(vec<Lit>& ret);
+    virtual void getReason(Lit lit, vec<Lit>& ret);
 
 protected:
     struct Axiom {
         virtual ~Axiom() {}
     };
     
-    GlucoseWrapper& solver;
-
+//    inline Axiom* getReasonOf(Lit lit) { return reason[var(lit)]; }
     inline Axiom* getObserved(Lit lit, int index) { return axioms[observed[sign(lit)][var(lit)][index]]; }
 
     void add(Axiom* axiom);
@@ -56,6 +73,7 @@ protected:
     virtual bool onAssign(Lit lit, int observedIndex) = 0;
     virtual void onUnassign(Lit /*lit*/, int /*observedIndex*/) {}
     virtual void getReason(Lit lit, Axiom* reason, vec<Lit>& res) = 0;
+    virtual void getConflictReason(Lit lit, Axiom* reason, vec<Lit>& res) = 0;
     
 private:
     int nextToPropagate;

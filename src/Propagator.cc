@@ -21,12 +21,15 @@
 
 namespace zuccherino {
 
-Propagator::Propagator(GlucoseWrapper& solver_, bool notifyOnCancel) : solver(solver_), nextToPropagate(0), partialUnassignIndex(-1) {
+Propagator::Propagator(GlucoseWrapper& solver_) : solver(solver_) {
     solver.add(this);
+}
+    
+AxiomsPropagator::AxiomsPropagator(GlucoseWrapper& solver, bool notifyOnCancel) : Propagator(solver), nextToPropagate(0), partialUnassignIndex(-1) {
     if(!notifyOnCancel) partialUnassignIndex = -2;
 }
 
-Propagator::~Propagator() {
+AxiomsPropagator::~AxiomsPropagator() {
     for(int i = 0; i < axioms.size(); i++) delete axioms[i];
     axioms.clear();
     observed[0].clear();
@@ -34,8 +37,11 @@ Propagator::~Propagator() {
     reason.clear();
 }
 
-void Propagator::onCancel() {
-    if(partialUnassignIndex == -2) return;
+void AxiomsPropagator::onCancel() {
+    if(partialUnassignIndex == -2) {
+        nextToPropagate = solver.nAssigns();
+        return;
+    }
     
     if(partialUnassignIndex != -1) {
         assert_msg(nextToPropagate > solver.nAssigns(), nextToPropagate << ", " << solver.nAssigns());
@@ -51,7 +57,7 @@ void Propagator::onCancel() {
     }
 }
 
-bool Propagator::simplify() {
+bool AxiomsPropagator::simplify() {
     int n = solver.nAssigns();
     while(nextToPropagate < n) {
         Lit lit = solver.assigned(nextToPropagate++);
@@ -61,13 +67,13 @@ bool Propagator::simplify() {
     return true;    
 }
 
-bool Propagator::simplify(Lit lit) {
+bool AxiomsPropagator::simplify(Lit lit) {
     vec<int>& v = observed[sign(lit)][var(lit)];
     for(int i = 0; i < v.size(); i++) if(!onSimplify(lit, i)) return false;
     return true;
 }
 
-bool Propagator::propagate() {
+bool AxiomsPropagator::propagate() {
     int n = solver.nAssigns();
     while(nextToPropagate < n) {
         Lit lit = solver.assigned(nextToPropagate++);
@@ -77,7 +83,7 @@ bool Propagator::propagate() {
     return true;
 }
 
-bool Propagator::propagate(Lit lit) {
+bool AxiomsPropagator::propagate(Lit lit) {
     vec<int>& v = observed[sign(lit)][var(lit)];
     for(int i = 0; i < v.size(); i++) {
         if(onAssign(lit, i)) continue;
@@ -90,17 +96,17 @@ bool Propagator::propagate(Lit lit) {
     return true;
 }
 
-void Propagator::getConflict(vec<Lit>& ret) {
+void AxiomsPropagator::getConflict(vec<Lit>& ret) {
     assert(conflictClause.size() > 0);
     conflictClause.moveTo(ret);
 }
 
-void Propagator::getReason(Lit lit, vec<Lit>& ret) {
+void AxiomsPropagator::getReason(Lit lit, vec<Lit>& ret) {
     assert(reason[var(lit)] != NULL);
     getReason(lit, reason[var(lit)], ret);
 }
 
-void Propagator::add(Axiom* axiom) {
+void AxiomsPropagator::add(Axiom* axiom) {
     vec<Lit> lits;
     notifyFor(axiom, lits);
     for(int i = 0; i < lits.size(); i++) {
@@ -111,16 +117,16 @@ void Propagator::add(Axiom* axiom) {
     axioms.push(axiom);
 }
 
-void Propagator::uncheckedEnqueue(Lit lit, Axiom* axiom) {
+void AxiomsPropagator::uncheckedEnqueue(Lit lit, Axiom* axiom) {
     reason[var(lit)] = axiom;
     solver.uncheckedEnqueueFromPropagator(lit, this);
 }
 
-void Propagator::setConflict(Lit lit, Axiom* axiom) {
-    getReason(lit, axiom, conflictClause);
+void AxiomsPropagator::setConflict(Lit lit, Axiom* axiom) {
+    getConflictReason(lit, axiom, conflictClause);
 }
 
-void Propagator::onNewVar() {
+void AxiomsPropagator::onNewVar() {
     observed[0].push();
     observed[1].push();
     reason.push(NULL);
