@@ -62,7 +62,7 @@ bool CardinalityConstraintPropagator::addGreaterEqual(vec<Lit>& lits_, int bound
         return true;
     }
     if(bound > lits.size()) return false;
-
+    
     add(new CardinalityConstraint(lits, bound));
     return true;
 }
@@ -82,7 +82,12 @@ void CardinalityConstraintPropagator::notifyFor(Axiom* axiom, vec<Lit>& lits) {
     assert(lits.size() == 0);
     
     CardinalityConstraint& cc = cast(axiom);
-    for(int i = 0; i < cc.lits.size(); i++) lits.push(~cc.lits[i]);
+    for(int i = 0; i < cc.lits.size(); i++) {
+        Lit lit = ~cc.lits[i];
+        if(!hasIndex(var(lit))) pushIndex(var(lit));
+        if(!hasIndex(lit)) pushIndex(lit);
+        lits.push(lit);
+    }
 }
 
 bool CardinalityConstraintPropagator::onSimplify(Lit lit, int observedIndex) {

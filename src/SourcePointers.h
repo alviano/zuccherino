@@ -20,15 +20,12 @@
 
 #include "Propagator.h"
 
-#include <set>
-
 namespace zuccherino {
 
 class SourcePointers: public Propagator {
 public:
     inline SourcePointers(GlucoseWrapper& solver) : Propagator(solver), nextToPropagate(0), unfoundedAtCall_(0) {}
 
-    virtual void onNewVar();
     virtual void onCancel();
     virtual bool simplify();
     virtual bool propagate();
@@ -55,7 +52,7 @@ private:
         vec<SuppIndex> inRecBody;
         unsigned unfoundedAtCall:30;
         unsigned flag:1;
-        unsigned removedFromSpOf : 1;
+        unsigned removedFromSpOf:1;
     };
     vec<VarData> varData;
     
@@ -77,19 +74,9 @@ private:
     
     inline vec<Var>& spOf(Lit lit) { return litData[getIndex(lit)].spOf; }
 
-    struct Index {
-        static const unsigned INVALID = UINT_MAX;
-        inline Index() : var(INVALID), pos(INVALID), neg(INVALID) {}
-        unsigned var;
-        unsigned pos;
-        unsigned neg;
-    };
-    vec<Index> indices;
-    inline unsigned getIndex(Var v) const { return indices[v].var; }
-    inline unsigned getIndex(Lit lit) const { return sign(lit) ? indices[var(lit)].neg : indices[var(lit)].pos; }
     void pushIndex(Var v);
     void pushIndex(Lit lit);
-    
+
     vec<Var> flagged;
     bool addToFlagged(Var v);
     void resetFlagged();

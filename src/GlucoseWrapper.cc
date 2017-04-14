@@ -47,7 +47,6 @@ void GlucoseWrapper::parse(gzFile in_) {
 Var GlucoseWrapper::newVar(bool polarity, bool dvar) {
     trailPosition.push();
     reasonFromPropagators.push();
-    for(int i = 0; i < propagators.size(); i++) propagators[i]->onNewVar();
     return Glucose::SimpSolver::newVar(polarity, dvar);
 }
 

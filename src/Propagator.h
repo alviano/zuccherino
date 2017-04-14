@@ -24,22 +24,41 @@ namespace zuccherino {
 
 class GlucoseWrapper;
 
+class Index {
+public:
+    inline bool has(Var v) const { return v < idx.size() && idx[v] != UINT_MAX; }
+    inline unsigned get(Var v) const { assert(has(v)); return idx[v]; }
+    void push(Var v, unsigned x) { assert(!has(v)); while(v >= idx.size()) idx.push(UINT_MAX); idx[v] = x; }
+private:
+    vec<unsigned> idx;
+};
+
 
 class Propagator {
 public:
     Propagator(GlucoseWrapper& solver);
     virtual ~Propagator() {}
     
-    virtual void onNewVar() = 0;
     virtual void onCancel() = 0;
     virtual bool simplify() = 0;
     virtual bool propagate() = 0;
     
     virtual void getConflict(vec<Lit>& ret) = 0;
     virtual void getReason(Lit lit, vec<Lit>& ret) = 0;
-
+    
 protected:
     GlucoseWrapper& solver;
+    
+    inline bool hasIndex(Var v) const { return varIndex.has(v); }
+    inline bool hasIndex(Lit lit) const { return litIndex[sign(lit)].has(var(lit)); }
+    inline unsigned getIndex(Var v) const { return varIndex.get(v); }
+    inline unsigned getIndex(Lit lit) const { return litIndex[sign(lit)].get(var(lit)); }
+    void pushIndex(Var v, unsigned idx);
+    void pushIndex(Lit lit, unsigned idx);
+
+private:
+    Index varIndex;
+    Index litIndex[2];
 };
 
 
@@ -48,7 +67,6 @@ public:
     AxiomsPropagator(GlucoseWrapper& solver, bool notifyOnCancel = false);
     virtual ~AxiomsPropagator();
     
-    virtual void onNewVar();
     virtual void onCancel();
     virtual bool simplify();
     virtual bool propagate();
@@ -62,7 +80,7 @@ protected:
     };
     
 //    inline Axiom* getReasonOf(Lit lit) { return reason[var(lit)]; }
-    inline Axiom* getObserved(Lit lit, int index) { return axioms[observed[sign(lit)][var(lit)][index]]; }
+    inline Axiom* getObserved(Lit lit, int index) { return axioms[observed(lit)[index]]; }
 
     void add(Axiom* axiom);
     void uncheckedEnqueue(Lit lit, Axiom* axiom);
@@ -75,12 +93,27 @@ protected:
     virtual void getReason(Lit lit, Axiom* reason, vec<Lit>& res) = 0;
     virtual void getConflictReason(Lit lit, Axiom* reason, vec<Lit>& res) = 0;
     
+    void pushIndex(Var v);
+    void pushIndex(Lit lit);
+    
 private:
     int nextToPropagate;
     vec<Axiom*> axioms;
-    vec< vec<int> > observed[2];
     
-    vec<Axiom*> reason;
+    struct VarData {
+        Axiom* reason;
+    };
+    vec<VarData> varData;
+    
+    inline Axiom*& reason(Var v) { return varData[getIndex(v)].reason; }
+    
+    struct LitData {
+        vec<int> observed;
+    };
+    vec<LitData> litData;
+    
+    inline vec<int>& observed(Lit lit){ return litData[getIndex(lit)].observed; }
+    
     vec<Lit> conflictClause;
     
     int partialUnassignIndex;

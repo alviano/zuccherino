@@ -17,7 +17,6 @@
 
 #include "WeightConstraint.h"
 
-#include <typeinfo>
 #include "GlucoseWrapper.h"
 
 namespace zuccherino {
@@ -40,12 +39,6 @@ string WeightConstraintPropagator::WeightConstraint::toString() const {
     for(int i = 0; i < lits.size(); i++) ss << weights[i] << ":" << lits[i] << " ";
     ss << "]:" << loosable;
     return ss.str();
-}
-
-void WeightConstraintPropagator::onNewVar() {
-    AxiomsPropagator::onNewVar();
-    litPos[0].push();
-    litPos[1].push();
 }
 
 bool WeightConstraintPropagator::addGreaterEqual(vec<Lit>& lits_, vec<int64_t>& weights, int64_t bound) {
@@ -201,6 +194,8 @@ void WeightConstraintPropagator::notifyFor(Axiom* axiom, vec<Lit>& lits) {
     WeightConstraint& wc = cast(axiom);
     for(int i = 0; i < wc.lits.size(); i++) {
         Lit lit = ~wc.lits[i];
+        if(!hasIndex(var(lit))) pushIndex(var(lit));
+        if(!hasIndex(lit)) pushIndex(lit);
         lits.push(lit);
         pushLitPos(lit, i);
     }
@@ -297,6 +292,12 @@ void WeightConstraintPropagator::getReason_(Lit lit, int index, Axiom* axiom, ve
             ret.push(l);
     }
     trace(wc, 25, "Reason: " << ret);
+}
+
+void WeightConstraintPropagator::pushIndex(Lit lit) {
+    assert(!hasIndex(lit));
+    AxiomsPropagator::pushIndex(lit);
+    litData.push();
 }
 
 }

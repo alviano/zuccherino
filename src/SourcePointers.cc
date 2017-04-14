@@ -21,10 +21,6 @@
 
 namespace zuccherino {
 
-void SourcePointers::onNewVar() {
-    indices.push();
-}
-
 void SourcePointers::onCancel() {
     nextToPropagate = solver.nAssigns();    
 }
@@ -32,7 +28,7 @@ void SourcePointers::onCancel() {
 void SourcePointers::removeSp() {
     while(nextToPropagate < solver.nAssigns()) {
         Lit lit = solver.assigned(nextToPropagate);
-        if(getIndex(~lit) != Index::INVALID) {
+        if(hasIndex(~lit)) {
             trace(sp, 5, "Propagate " << lit << "@" << solver.decisionLevel());
             vec<Var>& s = spOf(~lit);
             int j = 0;
@@ -197,25 +193,22 @@ bool SourcePointers::activate() {
 }
 
 void SourcePointers::pushIndex(Var v) {
-    assert(getIndex(v) == Index::INVALID);
-    solver.setFrozen(v, true);
-    indices[v].var = varData.size();
+    assert(!hasIndex(v));
+    Propagator::pushIndex(v, varData.size());
     varData.push();
     addToSpLost(v);
 }
 
 void SourcePointers::pushIndex(Lit lit) {
-    assert(getIndex(lit) == Index::INVALID);
-    solver.setFrozen(var(lit), true);
-    if(sign(lit)) indices[var(lit)].neg = litData.size();
-    else indices[var(lit)].pos = litData.size();
+    assert(!hasIndex(lit));
+    Propagator::pushIndex(lit, litData.size());
     litData.push();
 }
 
 void SourcePointers::add(Var atom, Lit body, vec<Var>& rec) {
-    if(getIndex(atom) == Index::INVALID) pushIndex(atom);
-    if(getIndex(body) == Index::INVALID) pushIndex(body);
-    for(int i = 0; i < rec.size(); i++) if(getIndex(rec[i]) == Index::INVALID) pushIndex(rec[i]);
+    if(!hasIndex(atom)) pushIndex(atom);
+    if(!hasIndex(body)) pushIndex(body);
+    for(int i = 0; i < rec.size(); i++) if(!hasIndex(rec[i])) pushIndex(rec[i]);
     
     supp(atom).push();
     vec<Lit>& s = supp(atom).last();
@@ -291,7 +284,7 @@ void SourcePointers::nextCall() {
     if(unfoundedAtCall_ == (UINT_MAX >> 2)) {
         unfoundedAtCall_ = 0;
         for(int i = 0; i < varData.size(); i++) varData[i].unfoundedAtCall = 0;
-        for(int i = 0; i < solver.nVars(); i++) if(getIndex(i) != Index::INVALID) addToSpLost(i);
+        for(int i = 0; i < solver.nVars(); i++) if(hasIndex(i)) addToSpLost(i);
     }
     unfoundedAtCall_++;
 }

@@ -26,8 +26,6 @@ class WeightConstraintPropagator: public AxiomsPropagator {
 public:
     inline WeightConstraintPropagator(GlucoseWrapper& solver, CardinalityConstraintPropagator* ccPropagator_ = NULL) : AxiomsPropagator(solver, true), ccPropagator(ccPropagator_) {}
 
-    virtual void onNewVar();
-
     bool addGreaterEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t bound);
     bool addLessEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t bound);
     bool addEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t bound);
@@ -57,7 +55,15 @@ protected:
 
 private:
     CardinalityConstraintPropagator* ccPropagator;
-    vec< vec<int> > litPos[2];
+    struct LitData {
+        vec<int> pos;
+    };
+    vec<LitData> litData;
+    
+    inline vec<int>& pos(Lit lit) { return litData[getIndex(lit)].pos; }
+    inline const vec<int>& pos(Lit lit) const { return litData[getIndex(lit)].pos; }
+    inline void pushIndex(Var v) { AxiomsPropagator::pushIndex(v); }
+    void pushIndex(Lit lit);
     
     inline int getLitPos(Lit lit, int observedIndex) const;
     inline void pushLitPos(Lit lit, int observedIndex);
@@ -76,12 +82,12 @@ WeightConstraintPropagator::WeightConstraint& WeightConstraintPropagator::cast(A
 }
 
 int WeightConstraintPropagator::getLitPos(Lit lit, int observedIndex) const {
-    assert(observedIndex < litPos[sign(lit)][var(lit)].size());
-    return litPos[sign(lit)][var(lit)][observedIndex];
+    assert(observedIndex < pos(lit).size());
+    return pos(lit)[observedIndex];
 }
 
 void WeightConstraintPropagator::pushLitPos(Lit lit, int observedIndex) {
-    litPos[sign(lit)][var(lit)].push(observedIndex);
+    pos(lit).push(observedIndex);
 }
 
 }

@@ -24,7 +24,20 @@ namespace zuccherino {
 Propagator::Propagator(GlucoseWrapper& solver_) : solver(solver_) {
     solver.add(this);
 }
-    
+
+void Propagator::pushIndex(Var v, unsigned idx) {
+    assert(!hasIndex(v));
+    solver.setFrozen(v, true);
+    varIndex.push(v, idx);
+}
+
+void Propagator::pushIndex(Lit lit, unsigned idx) {
+    assert(!hasIndex(lit));
+    solver.setFrozen(var(lit), true);
+    litIndex[sign(lit)].push(var(lit), idx);
+}
+
+
 AxiomsPropagator::AxiomsPropagator(GlucoseWrapper& solver, bool notifyOnCancel) : Propagator(solver), nextToPropagate(0), partialUnassignIndex(-1) {
     if(!notifyOnCancel) partialUnassignIndex = -2;
 }
@@ -32,9 +45,6 @@ AxiomsPropagator::AxiomsPropagator(GlucoseWrapper& solver, bool notifyOnCancel) 
 AxiomsPropagator::~AxiomsPropagator() {
     for(int i = 0; i < axioms.size(); i++) delete axioms[i];
     axioms.clear();
-    observed[0].clear();
-    observed[1].clear();
-    reason.clear();
 }
 
 void AxiomsPropagator::onCancel() {
@@ -46,13 +56,15 @@ void AxiomsPropagator::onCancel() {
     if(partialUnassignIndex != -1) {
         assert_msg(nextToPropagate > solver.nAssigns(), nextToPropagate << ", " << solver.nAssigns());
         Lit lit = solver.assigned(--nextToPropagate);
+        assert(hasIndex(lit));
         while(partialUnassignIndex >= 0) onUnassign(lit, partialUnassignIndex--);
         assert(partialUnassignIndex == -1);
     }
     
     while(nextToPropagate > solver.nAssigns()) {
         Lit lit = solver.assigned(--nextToPropagate);
-        vec<int>& v = observed[sign(lit)][var(lit)];
+        if(!hasIndex(lit)) continue;
+        vec<int>& v = observed(lit);
         for(int i = 0; i < v.size(); i++) onUnassign(lit, i);
     }
 }
@@ -61,6 +73,7 @@ bool AxiomsPropagator::simplify() {
     int n = solver.nAssigns();
     while(nextToPropagate < n) {
         Lit lit = solver.assigned(nextToPropagate++);
+        if(!hasIndex(lit)) continue;
         if(!simplify(lit)) return false;
         if(solver.nAssigns() > n) break;
     }
@@ -68,7 +81,7 @@ bool AxiomsPropagator::simplify() {
 }
 
 bool AxiomsPropagator::simplify(Lit lit) {
-    vec<int>& v = observed[sign(lit)][var(lit)];
+    vec<int>& v = observed(lit);
     for(int i = 0; i < v.size(); i++) if(!onSimplify(lit, i)) return false;
     return true;
 }
@@ -77,6 +90,7 @@ bool AxiomsPropagator::propagate() {
     int n = solver.nAssigns();
     while(nextToPropagate < n) {
         Lit lit = solver.assigned(nextToPropagate++);
+        if(!hasIndex(lit)) continue;
         if(!propagate(lit)) return false;
         if(solver.nAssigns() > n) break;
     }
@@ -84,7 +98,8 @@ bool AxiomsPropagator::propagate() {
 }
 
 bool AxiomsPropagator::propagate(Lit lit) {
-    vec<int>& v = observed[sign(lit)][var(lit)];
+    assert(hasIndex(lit));
+    vec<int>& v = observed(lit);
     for(int i = 0; i < v.size(); i++) {
         if(onAssign(lit, i)) continue;
         if(partialUnassignIndex != -2) {
@@ -102,8 +117,8 @@ void AxiomsPropagator::getConflict(vec<Lit>& ret) {
 }
 
 void AxiomsPropagator::getReason(Lit lit, vec<Lit>& ret) {
-    assert(reason[var(lit)] != NULL);
-    getReason(lit, reason[var(lit)], ret);
+    assert(reason(var(lit)) != NULL);
+    getReason(lit, reason(var(lit)), ret);
 }
 
 void AxiomsPropagator::add(Axiom* axiom) {
@@ -111,14 +126,13 @@ void AxiomsPropagator::add(Axiom* axiom) {
     notifyFor(axiom, lits);
     for(int i = 0; i < lits.size(); i++) {
         Lit lit = lits[i];
-        observed[sign(lit)][var(lit)].push(axioms.size());
-        solver.setFrozen(var(lit), true);
+        observed(lit).push(axioms.size());
     }
     axioms.push(axiom);
 }
 
 void AxiomsPropagator::uncheckedEnqueue(Lit lit, Axiom* axiom) {
-    reason[var(lit)] = axiom;
+    reason(var(lit)) = axiom;
     solver.uncheckedEnqueueFromPropagator(lit, this);
 }
 
@@ -126,10 +140,16 @@ void AxiomsPropagator::setConflict(Lit lit, Axiom* axiom) {
     getConflictReason(lit, axiom, conflictClause);
 }
 
-void AxiomsPropagator::onNewVar() {
-    observed[0].push();
-    observed[1].push();
-    reason.push(NULL);
+void AxiomsPropagator::pushIndex(Var v) {
+    assert(!hasIndex(v));
+    Propagator::pushIndex(v, varData.size());
+    varData.push();
+}
+
+void AxiomsPropagator::pushIndex(Lit lit) {
+    assert(!hasIndex(lit));
+    Propagator::pushIndex(lit, litData.size());
+    litData.push();
 }
 
 }
