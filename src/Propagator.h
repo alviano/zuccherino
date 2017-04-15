@@ -61,67 +61,6 @@ private:
     Index litIndex[2];
 };
 
-
-class AxiomsPropagator : public Propagator {
-public:
-    AxiomsPropagator(GlucoseWrapper& solver, bool notifyOnCancel = false);
-    virtual ~AxiomsPropagator();
-    
-    virtual void onCancel();
-    virtual bool simplify();
-    virtual bool propagate();
-    
-    virtual void getConflict(vec<Lit>& ret);
-    virtual void getReason(Lit lit, vec<Lit>& ret);
-
-protected:
-    struct Axiom {
-        virtual ~Axiom() {}
-    };
-    
-//    inline Axiom* getReasonOf(Lit lit) { return reason[var(lit)]; }
-    inline Axiom* getObserved(Lit lit, int index) { return axioms[observed(lit)[index]]; }
-
-    void add(Axiom* axiom);
-    void uncheckedEnqueue(Lit lit, Axiom* axiom);
-    void setConflict(Lit lit, Axiom* axiom);
-
-    virtual void notifyFor(Axiom* axiom, vec<Lit>& lits) = 0;
-    virtual bool onSimplify(Lit lit, int observedIndex) = 0;
-    virtual bool onAssign(Lit lit, int observedIndex) = 0;
-    virtual void onUnassign(Lit /*lit*/, int /*observedIndex*/) {}
-    virtual void getReason(Lit lit, Axiom* reason, vec<Lit>& res) = 0;
-    virtual void getConflictReason(Lit lit, Axiom* reason, vec<Lit>& res) = 0;
-    
-    void pushIndex(Var v);
-    void pushIndex(Lit lit);
-    
-private:
-    int nextToPropagate;
-    vec<Axiom*> axioms;
-    
-    struct VarData {
-        Axiom* reason;
-    };
-    vec<VarData> varData;
-    
-    inline Axiom*& reason(Var v) { return varData[getIndex(v)].reason; }
-    
-    struct LitData {
-        vec<int> observed;
-    };
-    vec<LitData> litData;
-    
-    inline vec<int>& observed(Lit lit){ return litData[getIndex(lit)].observed; }
-    
-    vec<Lit> conflictClause;
-    
-    int partialUnassignIndex;
-    
-    bool simplify(Lit lit);
-    bool propagate(Lit lit);
-};
-
 }
 
 #endif

@@ -18,11 +18,24 @@
 #ifndef zuccherino_cardinality_constraint_h
 #define zuccherino_cardinality_constraint_h
 
-#include "Propagator.h"
+#include "AxiomsPropagator.h"
 
 namespace zuccherino {
-    
-class CardinalityConstraintPropagator: public AxiomsPropagator {
+
+struct CardinalityConstraint {
+    friend ostream& operator<<(ostream& out, const CardinalityConstraint& cc) { return out << cc.toString(); }
+    friend class CardinalityConstraintPropagator;
+private:
+    inline CardinalityConstraint(vec<Lit>& lits_, int bound) { assert(bound >= 0); lits_.moveTo(lits); loosable = lits.size() - bound; }
+
+    string toString() const;
+
+    vec<Lit> lits;
+    int loosable;
+};
+
+class CardinalityConstraintPropagator: public AxiomsPropagator<CardinalityConstraint, CardinalityConstraintPropagator> {
+    friend AxiomsPropagator;
 public:
     inline CardinalityConstraintPropagator(GlucoseWrapper& solver) : AxiomsPropagator(solver, true) {}
 
@@ -32,36 +45,17 @@ public:
     inline bool addGreater(vec<Lit>& lits, int bound) { return addGreaterEqual(lits, bound + 1); }
     inline bool addLess(vec<Lit>& lits, int bound) { return addLessEqual(lits, bound - 1); }
 
-protected:
-    struct CardinalityConstraint : public Axiom {
-        friend ostream& operator<<(ostream& out, const CardinalityConstraint& cc) { return out << cc.toString(); }
-        
-        inline CardinalityConstraint(vec<Lit>& lits_, int bound) { assert(bound >= 0); lits_.moveTo(lits); loosable = lits.size() - bound; }
-        string toString() const;
-
-        vec<Lit> lits;
-        int loosable;
-    };
-    
-    virtual void notifyFor(Axiom* axiom, vec<Lit>& lits);
-    virtual bool onSimplify(Lit lit, int observedIndex);
-    virtual bool onAssign(Lit lit, int observedIndex);
-    virtual void onUnassign(Lit lit, int observedIndex);
-    virtual void getReason(Lit lit, Axiom* axiom, vec<Lit>& ret);
-    virtual void getConflictReason(Lit lit, Axiom* axiom, vec<Lit>& ret);
-
 private:
-    inline static CardinalityConstraint& cast(Axiom* axiom);
-    static void sort(vec<Lit>& lits);
+    void notifyFor(CardinalityConstraint& cc, vec<Lit>& lits);
+    bool onSimplify(Lit lit, int observedIndex);
+    bool onAssign(Lit lit, int observedIndex);
+    void onUnassign(Lit lit, int observedIndex);
+    void getReason(Lit lit, CardinalityConstraint& cc, vec<Lit>& ret);
+    void getReason_(Lit lit, int index, CardinalityConstraint& cc, vec<Lit>& ret);
+    void getConflictReason(Lit lit, CardinalityConstraint& cc, vec<Lit>& ret);
     
-    void getReason_(Lit lit, int index, Axiom* axiom, vec<Lit>& ret);
+    static void sort(vec<Lit>& lits);
 };
-
-CardinalityConstraintPropagator::CardinalityConstraint& CardinalityConstraintPropagator::cast(Axiom* axiom) {
-    assert(axiom != NULL);
-    assert(typeid(*axiom) == typeid(CardinalityConstraint));
-    return (*static_cast<CardinalityConstraint*>(axiom));
-}
 
 }
 

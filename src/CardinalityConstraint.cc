@@ -21,7 +21,7 @@
 
 namespace zuccherino {
 
-string CardinalityConstraintPropagator::CardinalityConstraint::toString() const {
+string CardinalityConstraint::toString() const {
     stringstream ss;
     ss << lits << ":" << loosable;
     return ss.str();
@@ -78,10 +78,9 @@ bool CardinalityConstraintPropagator::addEqual(vec<Lit>& lits, int bound) {
     return addGreaterEqual(lits, bound) && addLessEqual(tmp, bound);
 }
 
-void CardinalityConstraintPropagator::notifyFor(Axiom* axiom, vec<Lit>& lits) {
+void CardinalityConstraintPropagator::notifyFor(CardinalityConstraint& cc, vec<Lit>& lits) {
     assert(lits.size() == 0);
     
-    CardinalityConstraint& cc = cast(axiom);
     for(int i = 0; i < cc.lits.size(); i++) {
         Lit lit = ~cc.lits[i];
         if(!hasIndex(var(lit))) pushIndex(var(lit));
@@ -91,10 +90,9 @@ void CardinalityConstraintPropagator::notifyFor(Axiom* axiom, vec<Lit>& lits) {
 }
 
 bool CardinalityConstraintPropagator::onSimplify(Lit lit, int observedIndex) {
-    assert(solver.decisionLevel() == 0);
-    Axiom* axiom = getObserved(lit, observedIndex);
-    CardinalityConstraint& cc = cast(axiom);
+    CardinalityConstraint& cc = getObserved(lit, observedIndex);
     
+    assert(solver.decisionLevel() == 0);
     trace(cc, 10, "Propagate " << lit << "@" << solver.decisionLevel() << " on " << cc);
     cc.loosable--;
     
@@ -115,10 +113,9 @@ bool CardinalityConstraintPropagator::onSimplify(Lit lit, int observedIndex) {
 }
 
 bool CardinalityConstraintPropagator::onAssign(Lit lit, int observedIndex) {
-    assert(solver.decisionLevel() > 0);
-    Axiom* axiom = getObserved(lit, observedIndex);
-    CardinalityConstraint& cc = cast(axiom);
+    CardinalityConstraint& cc = getObserved(lit, observedIndex);
     
+    assert(solver.decisionLevel() > 0);
     trace(cc, 10, "Propagate " << lit << "@" << solver.decisionLevel() << " on " << cc);
     cc.loosable--;
     assert(cc.loosable >= 0);
@@ -129,7 +126,7 @@ bool CardinalityConstraintPropagator::onAssign(Lit lit, int observedIndex) {
             lbool v = solver.value(l);
             if(v == l_Undef) {
                 trace(cc, 15, "Infer " << l)
-                uncheckedEnqueue(l, axiom);
+                uncheckedEnqueue(l, cc);
             }
             else if(v == l_False && solver.level(var(l)) > 0 && solver.assignedIndex(l) > solver.assignedIndex(lit)) {
                 while(++i < cc.lits.size()) {
@@ -138,7 +135,7 @@ bool CardinalityConstraintPropagator::onAssign(Lit lit, int observedIndex) {
                     }
                 }
                 trace(cc, 8, "Conflict on " << l << " while propagating " << lit << " on " << cc);
-                setConflict(l, axiom);
+                setConflict(l, cc);
                 return false;
             }
         }
@@ -148,23 +145,21 @@ bool CardinalityConstraintPropagator::onAssign(Lit lit, int observedIndex) {
 }
 
 void CardinalityConstraintPropagator::onUnassign(Lit lit, int observedIndex) {
-    Axiom* axiom = getObserved(lit, observedIndex);
-    CardinalityConstraint& cc = cast(axiom);
+    CardinalityConstraint& cc = getObserved(lit, observedIndex);
     cc.loosable++;
     trace(cc, 15, "Restored " << cc);
 }
 
-void CardinalityConstraintPropagator::getReason(Lit lit, Axiom* axiom, vec<Lit>& ret) {
-    getReason_(lit, solver.assignedIndex(lit), axiom, ret);
+void CardinalityConstraintPropagator::getReason(Lit lit, CardinalityConstraint& cc, vec<Lit>& ret) {
+    getReason_(lit, solver.assignedIndex(lit), cc, ret);
 }
 
-void CardinalityConstraintPropagator::getConflictReason(Lit lit, Axiom* axiom, vec<Lit>& ret) {
-    getReason_(lit, solver.nAssigns(), axiom, ret);
+void CardinalityConstraintPropagator::getConflictReason(Lit lit, CardinalityConstraint& cc, vec<Lit>& ret) {
+    getReason_(lit, solver.nAssigns(), cc, ret);
 }
 
-void CardinalityConstraintPropagator::getReason_(Lit lit, int index, Axiom* axiom, vec<Lit>& ret) {
+void CardinalityConstraintPropagator::getReason_(Lit lit, int index, CardinalityConstraint& cc, vec<Lit>& ret) {
     assert(ret.size() == 0);
-    CardinalityConstraint& cc = cast(axiom);
     trace(cc, 20, "Computing reason for " << lit << " from " << cc);
 
     ret.push(lit);

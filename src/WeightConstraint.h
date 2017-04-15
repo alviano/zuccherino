@@ -22,7 +22,20 @@
 
 namespace zuccherino {
     
-class WeightConstraintPropagator: public AxiomsPropagator {
+struct WeightConstraint {
+    friend ostream& operator<<(ostream& out, const WeightConstraint& cc) { return out << cc.toString(); }
+    friend class WeightConstraintPropagator;
+private:    
+    WeightConstraint(vec<Lit>& lits, vec<int64_t>& weights, int64_t bound);
+    string toString() const;
+
+    vec<Lit> lits;
+    vec<int64_t> weights;
+    int64_t loosable;
+};
+
+class WeightConstraintPropagator: public AxiomsPropagator<WeightConstraint, WeightConstraintPropagator> {
+    friend AxiomsPropagator;
 public:
     inline WeightConstraintPropagator(GlucoseWrapper& solver, CardinalityConstraintPropagator* ccPropagator_ = NULL) : AxiomsPropagator(solver, true), ccPropagator(ccPropagator_) {}
 
@@ -33,23 +46,13 @@ public:
     inline bool addLess(vec<Lit>& lits, vec<int64_t>& weights, int64_t bound) { return addLessEqual(lits, weights, bound - 1); }
 
 protected:
-    struct WeightConstraint : public Axiom {
-        friend ostream& operator<<(ostream& out, const WeightConstraint& cc) { return out << cc.toString(); }
-        
-        WeightConstraint(vec<Lit>& lits, vec<int64_t>& weights, int64_t bound);
-        string toString() const;
-
-        vec<Lit> lits;
-        vec<int64_t> weights;
-        int64_t loosable;
-    };
     
-    virtual void notifyFor(Axiom* axiom, vec<Lit>& lits);
-    virtual bool onSimplify(Lit lit, int observedIndex);
-    virtual bool onAssign(Lit lit, int observedIndex);
-    virtual void onUnassign(Lit lit, int observedIndex);
-    virtual void getReason(Lit lit, Axiom* axiom, vec<Lit>& ret);
-    virtual void getConflictReason(Lit lit, Axiom* axiom, vec<Lit>& ret);
+    void notifyFor(WeightConstraint& wc, vec<Lit>& lits);
+    bool onSimplify(Lit lit, int observedIndex);
+    bool onAssign(Lit lit, int observedIndex);
+    void onUnassign(Lit lit, int observedIndex);
+    void getReason(Lit lit, WeightConstraint& wc, vec<Lit>& ret);
+    void getConflictReason(Lit lit, WeightConstraint& wc, vec<Lit>& ret);
 
     int64_t sum(const vec<int64_t>& weights) const;
 
@@ -68,18 +71,11 @@ private:
     inline int getLitPos(Lit lit, int observedIndex) const;
     inline void pushLitPos(Lit lit, int observedIndex);
     
-    void getReason_(Lit lit, int index, Axiom* axiom, vec<Lit>& ret);
+    void getReason_(Lit lit, int index, WeightConstraint& wc, vec<Lit>& ret);
     
-    inline static WeightConstraint& cast(Axiom* axiom);
     static void sortByWeight(vec<Lit>& lits, vec<int64_t>& weights);
     static void sortByLit(vec<Lit>& lits, vec<int64_t>& weights);
 };
-
-WeightConstraintPropagator::WeightConstraint& WeightConstraintPropagator::cast(Axiom* axiom) {
-    assert(axiom != NULL);
-    assert(typeid(*axiom) == typeid(WeightConstraint));
-    return (*static_cast<WeightConstraint*>(axiom));
-}
 
 int WeightConstraintPropagator::getLitPos(Lit lit, int observedIndex) const {
     assert(observedIndex < pos(lit).size());

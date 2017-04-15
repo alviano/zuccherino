@@ -21,7 +21,7 @@
 
 namespace zuccherino {
 
-WeightConstraintPropagator::WeightConstraint::WeightConstraint(vec<Lit>& lits_, vec<int64_t>& weights_, int64_t bound) {
+WeightConstraint::WeightConstraint(vec<Lit>& lits_, vec<int64_t>& weights_, int64_t bound) {
     assert(bound >= 0);
     assert(lits_.size() == weights_.size());
     lits_.moveTo(lits);
@@ -33,7 +33,7 @@ WeightConstraintPropagator::WeightConstraint::WeightConstraint(vec<Lit>& lits_, 
     }
 }
     
-string WeightConstraintPropagator::WeightConstraint::toString() const {
+string WeightConstraint::toString() const {
     stringstream ss;
     ss << "[ ";
     for(int i = 0; i < lits.size(); i++) ss << weights[i] << ":" << lits[i] << " ";
@@ -188,10 +188,9 @@ void WeightConstraintPropagator::sortByLit(vec<Lit>& lits, vec<int64_t>& weights
     }
 }
 
-void WeightConstraintPropagator::notifyFor(Axiom* axiom, vec<Lit>& lits) {
+void WeightConstraintPropagator::notifyFor(WeightConstraint& wc, vec<Lit>& lits) {
     assert(lits.size() == 0);
     
-    WeightConstraint& wc = cast(axiom);
     for(int i = 0; i < wc.lits.size(); i++) {
         Lit lit = ~wc.lits[i];
         if(!hasIndex(var(lit))) pushIndex(var(lit));
@@ -203,8 +202,7 @@ void WeightConstraintPropagator::notifyFor(Axiom* axiom, vec<Lit>& lits) {
 
 bool WeightConstraintPropagator::onSimplify(Lit lit, int observedIndex) {
     assert(solver.decisionLevel() == 0);
-    Axiom* axiom = getObserved(lit, observedIndex);
-    WeightConstraint& wc = cast(axiom);
+    WeightConstraint& wc = getObserved(lit, observedIndex);
     
     trace(wc, 10, "Propagate " << lit << "@" << solver.decisionLevel() << " on " << wc);
     int64_t weight = wc.weights[getLitPos(lit, observedIndex)];
@@ -231,8 +229,7 @@ bool WeightConstraintPropagator::onSimplify(Lit lit, int observedIndex) {
 
 bool WeightConstraintPropagator::onAssign(Lit lit, int observedIndex) {
     assert(solver.decisionLevel() > 0);
-    Axiom* axiom = getObserved(lit, observedIndex);
-    WeightConstraint& wc = cast(axiom);
+    WeightConstraint& wc = getObserved(lit, observedIndex);
     
     int64_t weight = wc.weights[getLitPos(lit, observedIndex)];
     trace(wc, 10, "Propagate " << lit << "@" << solver.decisionLevel() << " on " << wc << " (weight=" << weight << ")");
@@ -245,7 +242,7 @@ bool WeightConstraintPropagator::onAssign(Lit lit, int observedIndex) {
         if(wc.weights[i] <= wc.loosable) break;
         if(v == l_Undef) {
             trace(wc, 15, "Infer " << l)
-            uncheckedEnqueue(l, axiom);
+            uncheckedEnqueue(l, wc);
         }
         else if(v == l_False && solver.level(var(l)) > 0 && solver.assignedIndex(l) > solver.assignedIndex(lit)) {
             while(++i < wc.lits.size()) {
@@ -255,7 +252,7 @@ bool WeightConstraintPropagator::onAssign(Lit lit, int observedIndex) {
                 }
             }
             trace(wc, 8, "Conflict on " << l << " while propagating " << lit << " on " << wc);
-            setConflict(l, axiom);
+            setConflict(l, wc);
             return false;
         }
     }
@@ -264,30 +261,28 @@ bool WeightConstraintPropagator::onAssign(Lit lit, int observedIndex) {
 }
 
 void WeightConstraintPropagator::onUnassign(Lit lit, int observedIndex) {
-    Axiom* axiom = getObserved(lit, observedIndex);
-    WeightConstraint& wc = cast(axiom);
+    WeightConstraint& wc = getObserved(lit, observedIndex);
     int64_t weight = wc.weights[getLitPos(lit, observedIndex)];
     wc.loosable += weight;
     trace(wc, 15, "Restored " << wc);
 }
 
-void WeightConstraintPropagator::getReason(Lit lit, Axiom* axiom, vec<Lit>& ret) {
-    getReason_(lit, solver.assignedIndex(lit), axiom, ret);
+void WeightConstraintPropagator::getReason(Lit lit, WeightConstraint& wc, vec<Lit>& ret) {
+    getReason_(lit, solver.assignedIndex(lit), wc, ret);
 }
 
-void WeightConstraintPropagator::getConflictReason(Lit lit, Axiom* axiom, vec<Lit>& ret) {
-    getReason_(lit, solver.nAssigns(), axiom, ret);
+void WeightConstraintPropagator::getConflictReason(Lit lit, WeightConstraint& wc, vec<Lit>& ret) {
+    getReason_(lit, solver.nAssigns(), wc, ret);
 }
 
-void WeightConstraintPropagator::getReason_(Lit lit, int index, Axiom* axiom, vec<Lit>& ret) {
+void WeightConstraintPropagator::getReason_(Lit lit, int index, WeightConstraint& wc, vec<Lit>& ret) {
     assert(ret.size() == 0);
-    WeightConstraint& cc = cast(axiom);
 
-    trace(wc, 20, "Computing reason for " << lit << " from " << cc);
+    trace(wc, 20, "Computing reason for " << lit << " from " << wc);
 
     ret.push(lit);
-    for(int i = 0; i < cc.lits.size(); i++) {
-        Lit l = cc.lits[i];
+    for(int i = 0; i < wc.lits.size(); i++) {
+        Lit l = wc.lits[i];
         if(solver.value(l) == l_False && solver.level(var(l)) > 0 && solver.assignedIndex(l) < index)
             ret.push(l);
     }
