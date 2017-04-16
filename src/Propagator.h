@@ -24,16 +24,6 @@ namespace zuccherino {
 
 class GlucoseWrapper;
 
-class Index {
-public:
-    inline bool has(Var v) const { return v < idx.size() && idx[v] != UINT_MAX; }
-    inline unsigned get(Var v) const { assert(has(v)); return idx[v]; }
-    void push(Var v, unsigned x) { assert(!has(v)); while(v >= idx.size()) idx.push(UINT_MAX); idx[v] = x; }
-private:
-    vec<unsigned> idx;
-};
-
-
 class Propagator {
 public:
     Propagator(GlucoseWrapper& solver);
@@ -48,17 +38,6 @@ public:
     
 protected:
     GlucoseWrapper& solver;
-    
-    inline bool hasIndex(Var v) const { return varIndex.has(v); }
-    inline bool hasIndex(Lit lit) const { return litIndex[sign(lit)].has(var(lit)); }
-    inline unsigned getIndex(Var v) const { return varIndex.get(v); }
-    inline unsigned getIndex(Lit lit) const { return litIndex[sign(lit)].get(var(lit)); }
-    void pushIndex(Var v, unsigned idx);
-    void pushIndex(Lit lit, unsigned idx);
-
-private:
-    Index varIndex;
-    Index litIndex[2];
 };
 
 }

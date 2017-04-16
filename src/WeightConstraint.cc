@@ -193,8 +193,8 @@ void WeightConstraintPropagator::notifyFor(WeightConstraint& wc, vec<Lit>& lits)
     
     for(int i = 0; i < wc.lits.size(); i++) {
         Lit lit = ~wc.lits[i];
-        if(!hasIndex(var(lit))) pushIndex(var(lit));
-        if(!hasIndex(lit)) pushIndex(lit);
+        if(!data.has(var(lit))) data.push(solver, var(lit));
+        if(!data.has(lit)) data.push(solver, lit);
         lits.push(lit);
         pushLitPos(lit, i);
     }
@@ -287,12 +287,6 @@ void WeightConstraintPropagator::getReason_(Lit lit, int index, WeightConstraint
             ret.push(l);
     }
     trace(wc, 25, "Reason: " << ret);
-}
-
-void WeightConstraintPropagator::pushIndex(Lit lit) {
-    assert(!hasIndex(lit));
-    AxiomsPropagator::pushIndex(lit);
-    litData.push();
 }
 
 }

@@ -28,7 +28,7 @@ void SourcePointers::onCancel() {
 void SourcePointers::removeSp() {
     while(nextToPropagate < solver.nAssigns()) {
         Lit lit = solver.assigned(nextToPropagate);
-        if(hasIndex(~lit)) {
+        if(data.has(~lit)) {
             trace(sp, 5, "Propagate " << lit << "@" << solver.decisionLevel());
             vec<Var>& s = spOf(~lit);
             int j = 0;
@@ -189,26 +189,14 @@ void SourcePointers::resetSpLost() {
 bool SourcePointers::activate() {
     assert(solver.decisionLevel() == 0);
     trace(sp, 1, "Activate");
+    for(int i = 0; i < data.vars(); i++) addToSpLost(data.var(i));
     return onSimplify();
 }
 
-void SourcePointers::pushIndex(Var v) {
-    assert(!hasIndex(v));
-    Propagator::pushIndex(v, varData.size());
-    varData.push();
-    addToSpLost(v);
-}
-
-void SourcePointers::pushIndex(Lit lit) {
-    assert(!hasIndex(lit));
-    Propagator::pushIndex(lit, litData.size());
-    litData.push();
-}
-
 void SourcePointers::add(Var atom, Lit body, vec<Var>& rec) {
-    if(!hasIndex(atom)) pushIndex(atom);
-    if(!hasIndex(body)) pushIndex(body);
-    for(int i = 0; i < rec.size(); i++) if(!hasIndex(rec[i])) pushIndex(rec[i]);
+    if(!data.has(atom)) data.push(solver, atom);
+    if(!data.has(body)) data.push(solver, body);
+    for(int i = 0; i < rec.size(); i++) if(!data.has(rec[i])) data.push(solver, rec[i]);
     
     supp(atom).push();
     vec<Lit>& s = supp(atom).last();
@@ -283,8 +271,11 @@ void SourcePointers::nextCall() {
     assert(flagged.size() == 0);
     if(unfoundedAtCall_ == (UINT_MAX >> 2)) {
         unfoundedAtCall_ = 0;
-        for(int i = 0; i < varData.size(); i++) varData[i].unfoundedAtCall = 0;
-        for(int i = 0; i < solver.nVars(); i++) if(hasIndex(i)) addToSpLost(i);
+        for(int i = 0; i < data.vars(); i++) {
+            Var var = data(i).var;
+            addToSpLost(var);
+            data(var).unfoundedAtCall = 0;
+        }
     }
     unfoundedAtCall_++;
 }

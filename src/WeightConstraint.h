@@ -25,6 +25,15 @@ namespace zuccherino {
 struct WeightConstraint {
     friend ostream& operator<<(ostream& out, const WeightConstraint& cc) { return out << cc.toString(); }
     friend class WeightConstraintPropagator;
+public:
+    struct VarData : zuccherino::VarData {
+        WeightConstraint* reason;
+    };
+    struct LitData : zuccherino::LitData {
+        vec<int> observed;
+        vec<int> pos;
+    };
+
 private:    
     WeightConstraint(vec<Lit>& lits, vec<int64_t>& weights, int64_t bound);
     string toString() const;
@@ -58,15 +67,9 @@ protected:
 
 private:
     CardinalityConstraintPropagator* ccPropagator;
-    struct LitData {
-        vec<int> pos;
-    };
-    vec<LitData> litData;
     
-    inline vec<int>& pos(Lit lit) { return litData[getIndex(lit)].pos; }
-    inline const vec<int>& pos(Lit lit) const { return litData[getIndex(lit)].pos; }
-    inline void pushIndex(Var v) { AxiomsPropagator::pushIndex(v); }
-    void pushIndex(Lit lit);
+    inline vec<int>& pos(Lit lit) { return data(lit).pos; }
+    inline const vec<int>& pos(Lit lit) const { return data(lit).pos; }
     
     inline int getLitPos(Lit lit, int observedIndex) const;
     inline void pushLitPos(Lit lit, int observedIndex);

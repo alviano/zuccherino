@@ -83,8 +83,8 @@ void CardinalityConstraintPropagator::notifyFor(CardinalityConstraint& cc, vec<L
     
     for(int i = 0; i < cc.lits.size(); i++) {
         Lit lit = ~cc.lits[i];
-        if(!hasIndex(var(lit))) pushIndex(var(lit));
-        if(!hasIndex(lit)) pushIndex(lit);
+        if(!data.has(var(lit))) data.push(solver, var(lit));
+        if(!data.has(lit)) data.push(solver, lit);
         lits.push(lit);
     }
 }

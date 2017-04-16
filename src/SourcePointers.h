@@ -18,6 +18,7 @@
 #ifndef zuccherino_source_pointers_h
 #define zuccherino_source_pointers_h
 
+#include "Data.h"
 #include "Propagator.h"
 
 namespace zuccherino {
@@ -45,7 +46,7 @@ private:
         Var var;
         unsigned index;
     };
-    struct VarData {
+    struct VarData : zuccherino::VarData {
         inline VarData() : unfoundedAtCall(0), flag(0), removedFromSpOf(0) {}
         Lit sp;
         vec< vec<Lit> > supp;
@@ -54,29 +55,25 @@ private:
         unsigned flag:1;
         unsigned removedFromSpOf:1;
     };
-    vec<VarData> varData;
-    
-    inline Lit& sp(Var v) { return varData[getIndex(v)].sp; }
-    inline vec< vec<Lit> >& supp(Var v) { return varData[getIndex(v)].supp; }
-    inline vec<Lit>& supp(SuppIndex i) { return supp(i.var)[i.index]; }
-    inline vec<SuppIndex>& inRecBody(Var v) { return varData[getIndex(v)].inRecBody; }
-    inline unsigned unfoundedAtCall(Var v) const { return varData[getIndex(v)].unfoundedAtCall; }
-    inline void unfoundedAtCall(Var v, unsigned x) { varData[getIndex(v)].unfoundedAtCall = x; }
-    inline bool flag(Var v) const { return varData[getIndex(v)].flag; }
-    inline void flag(Var v, bool x) { varData[getIndex(v)].flag = x ? 1 : 0; }
-    inline bool removedFromSpOf(Var v) const { return varData[getIndex(v)].removedFromSpOf; }
-    inline void removedFromSpOf(Var v, bool x) { varData[getIndex(v)].removedFromSpOf = x ? 1 : 0; }
-    
-    struct LitData {
+    struct LitData : zuccherino::LitData {
         vec<Var> spOf;
     };
-    vec<LitData> litData;
+
+    Data<VarData, LitData> data;
     
-    inline vec<Var>& spOf(Lit lit) { return litData[getIndex(lit)].spOf; }
-
-    void pushIndex(Var v);
-    void pushIndex(Lit lit);
-
+    inline Lit& sp(Var v) { return data(v).sp; }
+    inline vec< vec<Lit> >& supp(Var v) { return data(v).supp; }
+    inline vec<Lit>& supp(SuppIndex i) { return supp(i.var)[i.index]; }
+    inline vec<SuppIndex>& inRecBody(Var v) { return data(v).inRecBody; }
+    inline unsigned unfoundedAtCall(Var v) const { return data(v).unfoundedAtCall; }
+    inline void unfoundedAtCall(Var v, unsigned x) { data(v).unfoundedAtCall = x; }
+    inline bool flag(Var v) const { return data(v).flag; }
+    inline void flag(Var v, bool x) { data(v).flag = x ? 1 : 0; }
+    inline bool removedFromSpOf(Var v) const { return data(v).removedFromSpOf; }
+    inline void removedFromSpOf(Var v, bool x) { data(v).removedFromSpOf = x ? 1 : 0; }
+    
+    inline vec<Var>& spOf(Lit lit) { return data(lit).spOf; }
+    
     vec<Var> flagged;
     bool addToFlagged(Var v);
     void resetFlagged();

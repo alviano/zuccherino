@@ -25,6 +25,14 @@ namespace zuccherino {
 struct CardinalityConstraint {
     friend ostream& operator<<(ostream& out, const CardinalityConstraint& cc) { return out << cc.toString(); }
     friend class CardinalityConstraintPropagator;
+public:
+    struct VarData : zuccherino::VarData {
+        CardinalityConstraint* reason;
+    };
+    struct LitData : zuccherino::LitData {
+        vec<int> observed;
+    };
+
 private:
     inline CardinalityConstraint(vec<Lit>& lits_, int bound) { assert(bound >= 0); lits_.moveTo(lits); loosable = lits.size() - bound; }
 

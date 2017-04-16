@@ -25,16 +25,4 @@ Propagator::Propagator(GlucoseWrapper& solver_) : solver(solver_) {
     solver.add(this);
 }
 
-void Propagator::pushIndex(Var v, unsigned idx) {
-    assert(!hasIndex(v));
-    solver.setFrozen(v, true);
-    varIndex.push(v, idx);
-}
-
-void Propagator::pushIndex(Lit lit, unsigned idx) {
-    assert(!hasIndex(lit));
-    solver.setFrozen(var(lit), true);
-    litIndex[sign(lit)].push(var(lit), idx);
-}
-
 }
