@@ -46,7 +46,7 @@ private:
         Var var;
         unsigned index;
     };
-    struct VarData : zuccherino::VarData {
+    struct VarData : VarDataBase {
         inline VarData() : unfoundedAtCall(0), flag(0), removedFromSpOf(0) {}
         Lit sp;
         vec< vec<Lit> > supp;
@@ -55,7 +55,7 @@ private:
         unsigned flag:1;
         unsigned removedFromSpOf:1;
     };
-    struct LitData : zuccherino::LitData {
+    struct LitData : LitDataBase {
         vec<Var> spOf;
     };
 

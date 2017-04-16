@@ -26,11 +26,8 @@ struct WeightConstraint {
     friend ostream& operator<<(ostream& out, const WeightConstraint& cc) { return out << cc.toString(); }
     friend class WeightConstraintPropagator;
 public:
-    struct VarData : zuccherino::VarData {
-        WeightConstraint* reason;
-    };
-    struct LitData : zuccherino::LitData {
-        vec<int> observed;
+    struct VarData : VarDataAxiomsPropagator<WeightConstraint> {};
+    struct LitData : LitDataAxiomsPropagator {
         vec<int> pos;
     };
 

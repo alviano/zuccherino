@@ -23,6 +23,14 @@
 
 namespace zuccherino {
 
+template<typename Axiom>
+struct VarDataAxiomsPropagator : VarDataBase {
+    Axiom* reason;
+};
+struct LitDataAxiomsPropagator : LitDataBase {
+    vec<int> observed;
+};
+
 template<typename Axiom, typename P>
 class AxiomsPropagator : public Propagator {
 public:

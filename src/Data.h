@@ -22,11 +22,10 @@
 
 namespace zuccherino {
 
-struct VarData {
+struct VarDataBase {
     Var var;
 };
-
-struct LitData {
+struct LitDataBase {
     Lit lit;
 };
     
