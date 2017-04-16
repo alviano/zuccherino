@@ -202,7 +202,7 @@ void WeightConstraintPropagator::notifyFor(WeightConstraint& wc, vec<Lit>& lits)
 
 bool WeightConstraintPropagator::onSimplify(Lit lit, int observedIndex) {
     assert(solver.decisionLevel() == 0);
-    WeightConstraint& wc = getObserved(lit, observedIndex);
+    WeightConstraint& wc = observed(lit, observedIndex);
     
     trace(wc, 10, "Propagate " << lit << "@" << solver.decisionLevel() << " on " << wc);
     int64_t weight = wc.weights[getLitPos(lit, observedIndex)];
@@ -229,7 +229,7 @@ bool WeightConstraintPropagator::onSimplify(Lit lit, int observedIndex) {
 
 bool WeightConstraintPropagator::onAssign(Lit lit, int observedIndex) {
     assert(solver.decisionLevel() > 0);
-    WeightConstraint& wc = getObserved(lit, observedIndex);
+    WeightConstraint& wc = observed(lit, observedIndex);
     
     int64_t weight = wc.weights[getLitPos(lit, observedIndex)];
     trace(wc, 10, "Propagate " << lit << "@" << solver.decisionLevel() << " on " << wc << " (weight=" << weight << ")");
@@ -261,7 +261,7 @@ bool WeightConstraintPropagator::onAssign(Lit lit, int observedIndex) {
 }
 
 void WeightConstraintPropagator::onUnassign(Lit lit, int observedIndex) {
-    WeightConstraint& wc = getObserved(lit, observedIndex);
+    WeightConstraint& wc = observed(lit, observedIndex);
     int64_t weight = wc.weights[getLitPos(lit, observedIndex)];
     wc.loosable += weight;
     trace(wc, 15, "Restored " << wc);

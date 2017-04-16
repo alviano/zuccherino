@@ -90,7 +90,7 @@ void CardinalityConstraintPropagator::notifyFor(CardinalityConstraint& cc, vec<L
 }
 
 bool CardinalityConstraintPropagator::onSimplify(Lit lit, int observedIndex) {
-    CardinalityConstraint& cc = getObserved(lit, observedIndex);
+    CardinalityConstraint& cc = observed(lit, observedIndex);
     
     assert(solver.decisionLevel() == 0);
     trace(cc, 10, "Propagate " << lit << "@" << solver.decisionLevel() << " on " << cc);
@@ -113,7 +113,7 @@ bool CardinalityConstraintPropagator::onSimplify(Lit lit, int observedIndex) {
 }
 
 bool CardinalityConstraintPropagator::onAssign(Lit lit, int observedIndex) {
-    CardinalityConstraint& cc = getObserved(lit, observedIndex);
+    CardinalityConstraint& cc = observed(lit, observedIndex);
     
     assert(solver.decisionLevel() > 0);
     trace(cc, 10, "Propagate " << lit << "@" << solver.decisionLevel() << " on " << cc);
@@ -145,7 +145,7 @@ bool CardinalityConstraintPropagator::onAssign(Lit lit, int observedIndex) {
 }
 
 void CardinalityConstraintPropagator::onUnassign(Lit lit, int observedIndex) {
-    CardinalityConstraint& cc = getObserved(lit, observedIndex);
+    CardinalityConstraint& cc = observed(lit, observedIndex);
     cc.loosable++;
     trace(cc, 15, "Restored " << cc);
 }

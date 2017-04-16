@@ -47,16 +47,12 @@ public:
 protected:
     Data<typename Axiom::VarData, typename Axiom::LitData> data;
     
-//    inline Axiom* getReasonOf(Lit lit) { return reason[var(lit)]; }
-    inline Axiom& getObserved(Lit lit, int index) { return *axioms[observed(lit)[index]]; }
+    inline Axiom& observed(Lit lit, int index) { return *axioms[observed(lit)[index]]; }
 
     void add(Axiom* axiom);
     void uncheckedEnqueue(Lit lit, Axiom& axiom);
     void setConflict(Lit lit, Axiom& axiom);
 
-    void pushIndex(Var v);
-    void pushIndex(Lit lit);
-    
 private:
     int nextToPropagate;
     vec<Axiom*> axioms;

@@ -65,9 +65,6 @@ protected:
 private:
     CardinalityConstraintPropagator* ccPropagator;
     
-    inline vec<int>& pos(Lit lit) { return data(lit).pos; }
-    inline const vec<int>& pos(Lit lit) const { return data(lit).pos; }
-    
     inline int getLitPos(Lit lit, int observedIndex) const;
     inline void pushLitPos(Lit lit, int observedIndex);
     
@@ -78,12 +75,12 @@ private:
 };
 
 int WeightConstraintPropagator::getLitPos(Lit lit, int observedIndex) const {
-    assert(observedIndex < pos(lit).size());
-    return pos(lit)[observedIndex];
+    assert(observedIndex < data(lit).pos.size());
+    return data(lit).pos[observedIndex];
 }
 
 void WeightConstraintPropagator::pushLitPos(Lit lit, int observedIndex) {
-    pos(lit).push(observedIndex);
+    data(lit).pos.push(observedIndex);
 }
 
 }
