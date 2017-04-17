@@ -68,9 +68,9 @@ private:
     inline unsigned unfoundedAtCall(Var v) const { return data(v).unfoundedAtCall; }
     inline void unfoundedAtCall(Var v, unsigned x) { data(v).unfoundedAtCall = x; }
     inline bool flag(Var v) const { return data(v).flag; }
-    inline void flag(Var v, bool x) { data(v).flag = x ? 1 : 0; }
+    inline void flag(Var v, bool x) { data(v).flag = x; }
     inline bool removedFromSpOf(Var v) const { return data(v).removedFromSpOf; }
-    inline void removedFromSpOf(Var v, bool x) { data(v).removedFromSpOf = x ? 1 : 0; }
+    inline void removedFromSpOf(Var v, bool x) { data(v).removedFromSpOf = x; }
     
     inline vec<Var>& spOf(Lit lit) { return data(lit).spOf; }
     
