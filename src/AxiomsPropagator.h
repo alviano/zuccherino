@@ -54,24 +54,24 @@ protected:
     void setConflict(Lit lit, Axiom& axiom);
 
 private:
-    int nextToPropagate;
+    struct Index {
+        inline Index() : lit(0), axiom(0) {}
+        inline void reset(int lit_) { lit = lit_; axiom = 0; }
+        inline int incLit() { axiom = 0; return lit++; }
+        inline int incAxiom() { return axiom++; }
+        int lit;
+        int axiom;
+    } next;
+    bool notifyOnCancel;
     vec<Axiom*> axioms;
+    vec<Lit> conflictClause;
     
     inline Axiom*& reason(Var v) { return data(v).reason; }
     inline vec<int>& observed(Lit lit){ return data(lit).observed; }
-    
-    vec<Lit> conflictClause;
-    
-    int partialUnassignIndex;
-    
-    bool simplify(Lit lit);
-    bool propagate(Lit lit);
 };
 
 template<typename Axiom, typename P>
-AxiomsPropagator<Axiom, P>::AxiomsPropagator(GlucoseWrapper& solver, bool notifyOnCancel) : Propagator(solver), nextToPropagate(0), partialUnassignIndex(-1) {
-    if(!notifyOnCancel) partialUnassignIndex = -2;
-}
+AxiomsPropagator<Axiom, P>::AxiomsPropagator(GlucoseWrapper& solver, bool notifyOnCancel_) : Propagator(solver), notifyOnCancel(notifyOnCancel_) {}
 
 template<typename Axiom, typename P>
 AxiomsPropagator<Axiom, P>::~AxiomsPropagator() {
@@ -81,69 +81,53 @@ AxiomsPropagator<Axiom, P>::~AxiomsPropagator() {
 
 template<typename Axiom, typename P>
 void AxiomsPropagator<Axiom, P>::onCancel() {
-    if(partialUnassignIndex == -2) {
-        nextToPropagate = solver.nAssigns();
-        return;
-    }
+    if(!notifyOnCancel) { next.reset(solver.nAssigns()); return; }
     
-    if(partialUnassignIndex != -1) {
-        assert_msg(nextToPropagate > solver.nAssigns(), nextToPropagate << ", " << solver.nAssigns());
-        Lit lit = solver.assigned(--nextToPropagate);
+    if(next.axiom != 0) {
+        assert_msg(next.lit > solver.nAssigns(), next.lit << ", " << solver.nAssigns());
+        Lit lit = solver.assigned(next.lit);
         assert(data.has(lit));
-        while(partialUnassignIndex >= 0) static_cast<P*>(this)->onUnassign(lit, partialUnassignIndex--);
-        assert(partialUnassignIndex == -1);
+        while(next.axiom > 0) static_cast<P*>(this)->onUnassign(lit, --next.axiom);
+        assert(next.axiom == 0);
     }
     
-    while(nextToPropagate > solver.nAssigns()) {
-        Lit lit = solver.assigned(--nextToPropagate);
+    while(next.lit > solver.nAssigns()) {
+        Lit lit = solver.assigned(--next.lit);
         if(!data.has(lit)) continue;
         vec<int>& v = observed(lit);
-        for(int i = 0; i < v.size(); i++) static_cast<P*>(this)->onUnassign(lit, i);
+        for(next.axiom = v.size(); next.axiom > 0;) static_cast<P*>(this)->onUnassign(lit, --next.axiom);
+        assert(next.axiom == 0);
     }
 }
 
 template<typename Axiom, typename P>
 bool AxiomsPropagator<Axiom, P>::simplify() {
     int n = solver.nAssigns();
-    while(nextToPropagate < n) {
-        Lit lit = solver.assigned(nextToPropagate++);
+    for(; next.lit < n; next.incLit()) {
+        Lit lit = solver.assigned(next.lit);
         if(!data.has(lit)) continue;
-        if(!simplify(lit)) return false;
-        if(solver.nAssigns() > n) break;
+        vec<int>& v = observed(lit);
+        assert(next.axiom <= v.size());
+        while(next.axiom < v.size()) {
+            if(!static_cast<P*>(this)->onSimplify(lit, next.incAxiom())) return false;
+            if(solver.nAssigns() > n) return true;
+        }
     }
     return true;    
 }
 
 template<typename Axiom, typename P>
-bool AxiomsPropagator<Axiom, P>::simplify(Lit lit) {
-    vec<int>& v = observed(lit);
-    for(int i = 0; i < v.size(); i++) if(!static_cast<P*>(this)->onSimplify(lit, i)) return false;
-    return true;
-}
-
-template<typename Axiom, typename P>
 bool AxiomsPropagator<Axiom, P>::propagate() {
     int n = solver.nAssigns();
-    while(nextToPropagate < n) {
-        Lit lit = solver.assigned(nextToPropagate++);
+    for(; next.lit < n; next.incLit()) {
+        Lit lit = solver.assigned(next.lit);
         if(!data.has(lit)) continue;
-        if(!propagate(lit)) return false;
-        if(solver.nAssigns() > n) break;
-    }
-    return true;
-}
-
-template<typename Axiom, typename P>
-bool AxiomsPropagator<Axiom, P>::propagate(Lit lit) {
-    assert(data.has(lit));
-    vec<int>& v = observed(lit);
-    for(int i = 0; i < v.size(); i++) {
-        if(static_cast<P*>(this)->onAssign(lit, i)) continue;
-        if(partialUnassignIndex != -2) {
-            assert(partialUnassignIndex == -1);
-            partialUnassignIndex = i;
+        vec<int>& v = observed(lit);
+        assert(next.axiom <= v.size());
+        while(next.axiom < v.size()) {
+            if(!static_cast<P*>(this)->onAssign(lit, next.incAxiom())) return false;
+            if(solver.nAssigns() > n) return true;
         }
-        return false;
     }
     return true;
 }
