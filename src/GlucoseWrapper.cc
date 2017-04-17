@@ -153,7 +153,7 @@ bool GlucoseWrapper::simplifyPropagators() {
     int n = nAssigns();
     for(int i = 0; i < propagators.size(); i++) {
         if(!propagators[i]->simplify()) return false;
-        if(nAssigns() < n) break;
+        if(nAssigns() > n) break;
     }
     return true;
 }
@@ -170,7 +170,7 @@ bool GlucoseWrapper::propagatePropagators() {
             propagators[i]->getConflict(conflictFromPropagators);
             return false;
         }
-        if(nAssigns() < n) break;
+        if(nAssigns() > n) break;
     }
     return true;
 }
