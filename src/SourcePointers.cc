@@ -76,12 +76,11 @@ bool SourcePointers::propagate() {
     
 }
 
-bool SourcePointers::canBeSp(const vec<Lit>& s) const {
-    if(solver.value(s[0]) == l_False) return false;
-    for(int i = 1; i < s.size(); i++) {
-        assert(solver.value(s[i]) != l_False);
-        assert(!sign(s[i]));
-        if(flag(var(s[i]))) return false;
+bool SourcePointers::canBeSp(const SuppData& s) const {
+    if(solver.value(s.body) == l_False) return false;
+    for(int i = 0; i < s.rec.size(); i++) {
+        assert(solver.value(s.rec[i]) != l_False);
+        if(flag(s.rec[i])) return false;
     }
     return true;
 }
@@ -108,9 +107,9 @@ void SourcePointers::setSp(Var v, Lit lit) {
         vec<SuppIndex>& rec = inRecBody(v);
         for(int i = 0; i < rec.size(); i++) {
             if(!flag(rec[i].var)) continue;
-            vec<Lit>& s = supp(rec[i]);
+            SuppData& s = supp(rec[i]);
             if(canBeSp(s)) {
-                stack.push(VarLit(rec[i].var, s[0]));
+                stack.push(VarLit(rec[i].var, s.body));
                 flag(rec[i].var, false);
             }
         }
@@ -122,10 +121,10 @@ void SourcePointers::rebuildSp() {
         Var v = flagged[i];
         if(!flag(v)) continue;
         trace(sp, 10, "Search sp for " << mkLit(v));
-        vec< vec<Lit> >& s = supp(v);
+        vec<SuppData>& s = supp(v);
         for(int j = 0; j < s.size(); j++) {
             if(!canBeSp(s[j])) continue;
-            setSp(v, s[j][0]);
+            setSp(v, s[j].body);
             break;
         }
     }
@@ -148,7 +147,7 @@ bool SourcePointers::unsetSp(Var v) {
         stack.pop();
         vec<SuppIndex>& rec = inRecBody(v);
         for(int i = 0; i < rec.size(); i++) {
-            if(sp(rec[i].var) != supp(rec[i])[0]) continue;
+            if(sp(rec[i].var) != supp(rec[i]).body) continue;
             trace(sp, 25, "Unset sp of " << mkLit(rec[i].var));
             if(addToSpLost(rec[i].var)) stack.push(rec[i].var);
         }
@@ -199,10 +198,10 @@ void SourcePointers::add(Var atom, Lit body, vec<Var>& rec) {
     for(int i = 0; i < rec.size(); i++) if(!data.has(rec[i])) data.push(solver, rec[i]);
     
     supp(atom).push();
-    vec<Lit>& s = supp(atom).last();
-    s.push(body);
+    SuppData& s = supp(atom).last();
+    s.body = body;
     for(int i = 0; i < rec.size(); i++) {
-        s.push(mkLit(rec[i]));
+        s.rec.push(rec[i]);
         inRecBody(rec[i]).push(SuppIndex(atom, i));
     }
     
@@ -251,13 +250,13 @@ void SourcePointers::getReason_(Lit lit, int index, unsigned uac, vec<Lit>& ret)
         stack.pop();
         
         if(addToFlagged(v)) {
-            vec< vec<Lit> >& s = supp(v);
+            vec<SuppData>& s = supp(v);
             for(int i = 0; i < s.size(); i++) {
-                vec<Lit>& si = s[i];
-                if(solver.value(si[0]) == l_False && solver.assignedIndex(si[0]) < index) { ret.push(si[0]); continue; }
-                for(int j = 1; j < si.size(); j++) {
-                    unsigned uac_ = unfoundedAtCall(var(si[j]));
-                    if(uac_ <= uac) { stack.push(Cell(var(si[j]), solver.assignedIndex(si[j]), uac_)); break; }
+                SuppData& si = s[i];
+                if(solver.value(si.body) == l_False && solver.assignedIndex(si.body) < index) { ret.push(si.body); continue; }
+                for(int j = 0; j < si.rec.size(); j++) {
+                    unsigned uac_ = unfoundedAtCall(si.rec[j]);
+                    if(uac_ <= uac) { stack.push(Cell(si.rec[j], solver.assignedIndex(si.rec[j]), uac_)); break; }
                 }
             }
         }

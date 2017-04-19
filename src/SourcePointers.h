@@ -46,10 +46,14 @@ private:
         Var var;
         unsigned index;
     };
+    struct SuppData {
+        Lit body;
+        vec<Var> rec;
+    };
     struct VarData : VarDataBase {
         inline VarData() : unfoundedAtCall(0), flag(0), removedFromSpOf(0) {}
         Lit sp;
-        vec< vec<Lit> > supp;
+        vec<SuppData> supp;
         vec<SuppIndex> inRecBody;
         unsigned unfoundedAtCall:30;
         unsigned flag:1;
@@ -62,8 +66,8 @@ private:
     Data<VarData, LitData> data;
     
     inline Lit& sp(Var v) { return data(v).sp; }
-    inline vec< vec<Lit> >& supp(Var v) { return data(v).supp; }
-    inline vec<Lit>& supp(SuppIndex i) { return supp(i.var)[i.index]; }
+    inline vec<SuppData>& supp(Var v) { return data(v).supp; }
+    inline SuppData& supp(SuppIndex i) { return supp(i.var)[i.index]; }
     inline vec<SuppIndex>& inRecBody(Var v) { return data(v).inRecBody; }
     inline unsigned unfoundedAtCall(Var v) const { return data(v).unfoundedAtCall; }
     inline void unfoundedAtCall(Var v, unsigned x) { data(v).unfoundedAtCall = x; }
@@ -84,7 +88,7 @@ private:
     inline unsigned unfoundedAtCall() const { return unfoundedAtCall_; }
     void nextCall();
 
-    bool canBeSp(const vec<Lit>& s) const;
+    bool canBeSp(const SuppData& s) const;
     void setSp(Var atom, Lit source_pointer);
     void rebuildSp();
     bool unsetSp(Var atom);
