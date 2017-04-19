@@ -130,7 +130,7 @@ void MaxSAT::addWeightedClause(vec<Lit>& lits, int64_t weight) {
 void MaxSAT::addToLowerBound(int64_t value) {
     assert(value > 0);
     lowerBound += value;
-    cout << "o " << lowerBound << endl;
+    printLowerBound();
 }
 
 void MaxSAT::updateUpperBound() {
@@ -139,7 +139,7 @@ void MaxSAT::updateUpperBound() {
     if(sum < upperBound) {
         upperBound = sum;
         copyModel();
-        cout << "c " << upperBound << " ub" << endl;
+        printUpperBound();
     }
 }
 
@@ -308,7 +308,7 @@ void MaxSAT::processConflict(int64_t weight) {
 
 lbool MaxSAT::solve() {
     lbool status = solveWithBudget();
-    if(status == l_False) { cout << "s UNSATISFIABLE" << endl; return l_False; }
+    if(status == l_False) { printUnsat(); return l_False; }
     if(status == l_True) updateUpperBound();
     hardening();
     
@@ -344,12 +344,12 @@ lbool MaxSAT::solve() {
     }
     assert(lowerBound == upperBound);
 
-    if(upperBound == INT64_MAX) { cout << "s UNSATISFIABLE" << endl; return l_False; }
+    if(upperBound == INT64_MAX) { printUnsat(); return l_False; }
     
     assert(softLits.size() == 0);
     
-    cout << "o " << lowerBound << endl;
-    cout << "s OPTIMUM FOUND" << endl;
+    printLowerBound();
+    printOptimum();
     if(option_n == 1) printModel();
     else enumerateModels();
     return l_True;
@@ -362,7 +362,7 @@ void MaxSAT::enumerateModels() {
     int count = 0;
     while(solveWithBudget() == l_True) {
         count++;
-        cout << "c Model " << count << endl;
+        printModelCounter(count);
         copyModel();
         printModel();
         if(count == option_n) break;
