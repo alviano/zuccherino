@@ -31,8 +31,8 @@ LINK = $(GCC)
 LINKFLAGS = $(linkflags.$(BUILD))
 LIBS = -lm -lz -lpthread
 
-APPS = $(shell find $(SOURCE_DIR) -name '*.cpp')
-SRCS = $(shell find $(SOURCE_DIR) -name '*.cc')
+APPS = $(shell find -L $(SOURCE_DIR) -name '*.cpp')
+SRCS = $(shell find -L $(SOURCE_DIR) -name '*.cc')
 
 BINARIES = $(patsubst $(SOURCE_DIR)%.cpp,$(BUILD_DIR)%, $(APPS))
 

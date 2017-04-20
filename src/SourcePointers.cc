@@ -213,7 +213,7 @@ bool SourcePointers::onSimplify() {
     
     for(int i = 0; i < flagged.size(); i++) {
         assert(flag(flagged[i]));
-        if(!solver.addClause(~mkLit(flagged[i]))) return false;
+        solver.uncheckedEnqueueFromPropagator(~mkLit(flagged[i]), this);
     }
     resetSpLost();
     

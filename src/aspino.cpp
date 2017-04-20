@@ -43,16 +43,13 @@ int main(int argc, char** argv) {
     ::solver = &solver;
 
     gzFile in = argc == 1 ? gzdopen(0, "rb") : gzopen(argv[1], "rb");
+    if(in == NULL) cerr << "Cannot open file " << (argc == 1 ? "STDIN" : argv[1]) << endl, exit(-1);
     solver.parse(in);
     gzclose(in);
     
     solver.eliminate(true);
-    lbool ret;
-    if(solver.okay()) ret = solver.solve();
-    else {
-        ret = l_False;
-        solver.printUnsat();
-    }
+    lbool ret = solver.okay() ? solver.solve() : l_False;
+    if(ret == l_False) cout << "INCONSISTENT" << endl;
     
     int code = ret == l_True ? (solver.isOptimizationProblem() ? 30 : 10) : ret == l_False ? 20 : 0;
 #ifndef NDEBUG

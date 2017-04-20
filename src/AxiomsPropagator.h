@@ -56,9 +56,6 @@ protected:
 private:
     struct Index {
         inline Index() : lit(0), axiom(0) {}
-        inline void reset(int lit_) { lit = lit_; axiom = 0; }
-        inline int incLit() { axiom = 0; return lit++; }
-        inline int incAxiom() { return axiom++; }
         int lit;
         int axiom;
     } next;
@@ -81,10 +78,10 @@ AxiomsPropagator<Axiom, P>::~AxiomsPropagator() {
 
 template<typename Axiom, typename P>
 void AxiomsPropagator<Axiom, P>::onCancel() {
-    if(!notifyOnCancel) { next.reset(solver.nAssigns()); return; }
+    if(!notifyOnCancel) { next.lit = solver.nAssigns(); next.axiom = 0; return; }
     
     if(next.axiom != 0) {
-        assert_msg(next.lit > solver.nAssigns(), next.lit << ", " << solver.nAssigns());
+        assert_msg(next.lit >= solver.nAssigns(), "next.lit=" << next.lit << "; solver.nAssigns()=" << solver.nAssigns());
         Lit lit = solver.assigned(next.lit);
         assert(data.has(lit));
         while(next.axiom > 0) static_cast<P*>(this)->onUnassign(lit, --next.axiom);
@@ -103,32 +100,40 @@ void AxiomsPropagator<Axiom, P>::onCancel() {
 template<typename Axiom, typename P>
 bool AxiomsPropagator<Axiom, P>::simplify() {
     int n = solver.nAssigns();
-    for(; next.lit < n; next.incLit()) {
+    while(next.lit < n) {
         Lit lit = solver.assigned(next.lit);
-        if(!data.has(lit)) continue;
-        vec<int>& v = observed(lit);
-        assert(next.axiom <= v.size());
-        while(next.axiom < v.size()) {
-            if(!static_cast<P*>(this)->onSimplify(lit, next.incAxiom())) return false;
-            if(solver.nAssigns() > n) return true;
+        if(data.has(lit)) {
+            vec<int>& v = observed(lit);
+            assert(next.axiom <= v.size());
+            while(next.axiom < v.size()) {
+                if(!static_cast<P*>(this)->onSimplify(lit, next.axiom++)) return false;
+                if(solver.nAssigns() > n) return true;
+            }
         }
+        next.lit++;
+        next.axiom = 0;
     }
+    assert(next.lit == solver.nAssigns());
     return true;    
 }
 
 template<typename Axiom, typename P>
 bool AxiomsPropagator<Axiom, P>::propagate() {
     int n = solver.nAssigns();
-    for(; next.lit < n; next.incLit()) {
+    while(next.lit < n) {
         Lit lit = solver.assigned(next.lit);
-        if(!data.has(lit)) continue;
-        vec<int>& v = observed(lit);
-        assert(next.axiom <= v.size());
-        while(next.axiom < v.size()) {
-            if(!static_cast<P*>(this)->onAssign(lit, next.incAxiom())) return false;
-            if(solver.nAssigns() > n) return true;
+        if(data.has(lit)) {
+            vec<int>& v = observed(lit);
+            assert(next.axiom <= v.size());
+            while(next.axiom < v.size()) {
+                if(!static_cast<P*>(this)->onAssign(lit, next.axiom++)) return false;
+                if(solver.nAssigns() > n) return true;
+            }
         }
+        next.lit++;
+        next.axiom = 0;
     }
+    assert(next.lit == solver.nAssigns());
     return true;
 }
 

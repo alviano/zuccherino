@@ -307,10 +307,11 @@ void MaxSAT::processConflict(int64_t weight) {
 }
 
 lbool MaxSAT::solve() {
-    lbool status = solveWithBudget();
-    if(status == l_False) { printUnsat(); return l_False; }
-    if(status == l_True) updateUpperBound();
-    hardening();
+    lbool status;
+//    = solveWithBudget();
+//    if(status == l_False) { printUnsat(); return l_False; }
+//    if(status == l_True) updateUpperBound();
+//    hardening();
     
     int64_t limit = computeNextLimit(INT64_MAX);
     for(;;) {

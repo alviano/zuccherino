@@ -36,23 +36,11 @@ public:
     
     void addWeightedClause(vec<Lit>& lits, int64_t weight);
     
-    virtual void printModel() const;
+    void printModel() const;
 
-    virtual void printLowerBound() const { cout << "o " << lowerBound << endl; }
-    virtual void printUpperBound() const { cout << "c " << upperBound << " ub" << endl; }
-    virtual void printUnsat() const { cout << "s UNSATISFIABLE" << endl; }
-    virtual void printOptimum() const { cout << "s OPTIMUM FOUND" << endl; }
-    virtual void printModelCounter(int count) const { cout << "c Model " << count << endl; }
-    
-protected:
-    CardinalityConstraintPropagator ccPropagator;
-    
-    inline const vec<Lit>& getSoftLits() const { return softLits; }
-    inline int64_t getLowerBound() const { return lowerBound; }
-    inline int64_t getUpperBound() const { return upperBound; }
-    
 private:
     int nInputVars;
+    CardinalityConstraintPropagator ccPropagator;
     
     vec<Lit> softLits;
     vec<int64_t> weights;
@@ -73,6 +61,13 @@ private:
     void processConflict(int64_t weight);
     
     void enumerateModels();
+
+    inline void printLowerBound() const { cout << "o " << lowerBound << endl; }
+    inline void printUpperBound() const { cout << "c " << upperBound << " ub" << endl; }
+    inline void printUnsat() const { cout << "s UNSATISFIABLE" << endl; }
+    inline void printOptimum() const { cout << "s OPTIMUM FOUND" << endl; }
+    inline void printModelCounter(int count) const { cout << "c Model " << count << endl; }
+    
 };
 
 }

@@ -41,10 +41,12 @@ string WeightConstraint::toString() const {
     return ss.str();
 }
 
-bool WeightConstraintPropagator::addGreaterEqual(vec<Lit>& lits_, vec<int64_t>& weights, int64_t bound) {
+bool WeightConstraintPropagator::addGreaterEqual(vec<Lit>& lits_, vec<int64_t>& weights_, int64_t bound) {
     assert(solver.decisionLevel() == 0);
     vec<Lit> lits;
+    vec<int64_t> weights;
     lits_.moveTo(lits);
+    weights_.moveTo(weights);
 
     trace(wc, 50, "Adding WC: lits=" << lits << "; weights=" << weights << "; bound=" << bound);
 
@@ -204,8 +206,8 @@ bool WeightConstraintPropagator::onSimplify(Lit lit, int observedIndex) {
     assert(solver.decisionLevel() == 0);
     WeightConstraint& wc = observed(lit, observedIndex);
     
-    trace(wc, 10, "Propagate " << lit << "@" << solver.decisionLevel() << " on " << wc);
     int64_t weight = wc.weights[getLitPos(lit, observedIndex)];
+    trace(wc, 10, "Propagate " << lit << "@" << solver.decisionLevel() << " on " << wc << " (weight=" << weight << ")");
     wc.loosable -= weight;
     
     if(wc.loosable < 0) return false;
@@ -217,7 +219,7 @@ bool WeightConstraintPropagator::onSimplify(Lit lit, int observedIndex) {
         if(wc.weights[i] <= wc.loosable) break;
         if(v == l_Undef) {
             trace(wc, 15, "Infer " << l);
-            if(!solver.addClause(l)) return false;
+            uncheckedEnqueue(l, wc);
         }
 //        wc.lits[j] = wc.lits[i];
 //        wc.weights[j++] = wc.weights[i];

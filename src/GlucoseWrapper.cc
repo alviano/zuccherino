@@ -45,7 +45,7 @@ void GlucoseWrapper::parse(gzFile in_) {
 }
 
 Var GlucoseWrapper::newVar(bool polarity, bool dvar) {
-    trailPosition.push();
+    trailPosition.push(INT_MAX);
     reasonFromPropagators.push();
     return Glucose::SimpSolver::newVar(polarity, dvar);
 }
@@ -131,10 +131,11 @@ void GlucoseWrapper::learnClauseFromModel() {
 }
 
 void GlucoseWrapper::cancelUntil(int level) {
+    if(decisionLevel() <= level) return;
     trace(solver, 5, "Cancel until " << level);
     Glucose::SimpSolver::cancelUntil(level);
-    nTrailPosition = nAssigns();
     for(int i = 0; i < propagators.size(); i++) propagators[i]->onCancel();
+    while(nTrailPosition > nAssigns()) trailPosition[var(assigned(--nTrailPosition))] = INT_MAX;
 }
 
 void GlucoseWrapper::uncheckedEnqueueFromPropagator(Lit lit, Propagator* propagator) {

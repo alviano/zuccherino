@@ -18,37 +18,70 @@
 #ifndef zuccherino_asp_h
 #define zuccherino_asp_h
 
-#include "MaxSAT.h"
-#include "WeightConstraint.h"
+#include "Data.h"
 #include "SourcePointers.h"
+#include "WeightConstraint.h"
 
 namespace zuccherino {
 
-class ASP : public MaxSAT {
+class ASP : public GlucoseWrapper {
 public:
     ASP();
     ~ASP();
     
     void parse(gzFile in);
     
-    virtual void printModel() const;
+    void printModel() const;
+    lbool solve();
     
     inline bool isOptimizationProblem() const { return optimization; }
     
-    virtual void printLowerBound() const {}
-    virtual void printUpperBound() const {}
-    virtual void printUnsat() const { cout << "INCONSISTENT" << endl; }
-    virtual void printOptimum() const {}
-//    virtual void printModelCounter(int count) const { cout << "c Model " << count << endl; }    
-    
 private:
+    CardinalityConstraintPropagator ccPropagator;
     WeightConstraintPropagator wcPropagator;
     SourcePointers* spPropagator;
+    
+    struct LitData : LitDataBase {
+        int64_t weight;
+        int level;
+    };
+    Data<VarDataBase, LitData> data;
+    inline int64_t& weight(Lit lit) { return data(lit).weight; }
+    inline int64_t weight(Lit lit) const { return data(lit).weight; }
+    inline int& level(Lit lit) { return data(lit).level; }
+    inline int level(Lit lit) const { return data(lit).level; }
+    
+    vec<Lit> softLits;
+    
+    struct Level {
+        int level;
+        int64_t lowerBound;
+        int64_t upperBound;
+    };
+    vec<Level> levels;
+    vec<Level> solved;
     
     vec<Lit> visible;
     vec<char*> visibleValue;
     
     int optimization:1;
+    
+    Lit parseLit(Glucose::StreamBuffer& in);
+    
+    
+    void addToLowerBound(int64_t value);
+    void updateUpperBound();
+    
+    void hardening();
+    int64_t computeNextLimit(int64_t limit) const;
+    void setAssumptions(int64_t limit);
+    
+    void trimConflict();
+    void shrinkConflict(int64_t limit);
+    int64_t computeConflictWeight() const;
+    void processConflict(int64_t weight);
+    
+    void enumerateModels();
 };
 
 }

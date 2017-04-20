@@ -26,7 +26,9 @@ Glucose::IntOption option_trace_cc("TRACE", "trace-cc", "Set trace level of card
 Glucose::IntOption option_trace_wc("TRACE", "trace-wc", "Set trace level of weight constraints.", 0, Glucose::IntRange(0, INT32_MAX));
 Glucose::IntOption option_trace_sp("TRACE", "trace-sp", "Set trace level of source pointers.", 0, Glucose::IntRange(0, INT32_MAX));
 Glucose::IntOption option_trace_maxsat("TRACE", "trace-maxsat", "Set trace level of MaxSAT solver.", 0, Glucose::IntRange(0, INT32_MAX));
+Glucose::IntOption option_trace_asp("TRACE", "trace-asp", "Set trace level of ASP solver.", 0, Glucose::IntRange(0, INT32_MAX));
 
-}
 
 #endif
+
+}

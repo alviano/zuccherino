@@ -103,7 +103,7 @@ bool CardinalityConstraintPropagator::onSimplify(Lit lit, int observedIndex) {
             lbool v = solver.value(l);
             if(v == l_Undef) {
                 trace(cc, 15, "Infer " << l);
-                if(!solver.addClause(l)) return false;
+                uncheckedEnqueue(l, cc);
             }
         }
         cc.lits.clear();
