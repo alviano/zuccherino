@@ -117,6 +117,7 @@ void GlucoseWrapper::learnClauseFromModel() {
         assert(reason(var(lit)) == CRef_Undef);
         lits.push(~lit);
     }
+    trace(solver, 10, "Blocking clause: " << lits);
     if(lits.size() == 0) { ok = false; return; }
     
     cancelUntil(decisionLevel()-1);
