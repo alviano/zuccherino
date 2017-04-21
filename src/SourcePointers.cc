@@ -26,52 +26,66 @@ void SourcePointers::onCancel() {
 }
 
 void SourcePointers::removeSp() {
+    assert(flagged.size() == 0);
+    vec<Var> queue;
     while(nextToPropagate < solver.nAssigns()) {
         Lit lit = solver.assigned(nextToPropagate);
         if(data.has(~lit)) {
             trace(sp, 5, "Propagate " << lit << "@" << solver.decisionLevel());
             vec<Var>& s = spOf(~lit);
-            int j = 0;
             for(int i = 0; i < s.size(); i++) {
                 if(sp(s[i]) != ~lit) continue;
-                if(unsetSp(s[i])) { removedFromSpOf(s[i], true); continue; }
-                s[j++] = s[i];
+                if(!addToSpLost(s[i])) continue;
+                queue.push(s[i]);
             }
-            s.shrink_(s.size()-j);
         }
         nextToPropagate++;
+    }
+    for(int q = 0; q < queue.size(); q++) {
+        Var v = queue[q];
+        vec<SuppIndex>& rec = inRecBody(v);
+        for(int i = 0; i < rec.size(); i++) {
+            if(sp(rec[i].var) != supp(rec[i]).body) continue;
+            if(!addToSpLost(rec[i].var)) continue;
+            queue.push(rec[i].var);
+        }
     }
 }
 
 bool SourcePointers::simplify() {
     assert(solver.decisionLevel() == 0);
+    nextCall();
     removeSp();
-    return onSimplify();
+    return checkInferences();
 }
 
 bool SourcePointers::propagate() {
     assert(solver.decisionLevel() > 0);
     nextCall();
     removeSp();
+    return checkInferences();
+}
+
+bool SourcePointers::checkInferences() {    
     rebuildSp();
-    
-    if(flagged.size() == 0) return true;
-    
+    conflictLit = lit_Undef;
     for(int i = 0; i < flagged.size(); i++) {
-        if(solver.value(flagged[i]) == l_True) {
-            trace(sp, 10, "Conflict on " << ~mkLit(flagged[i]));
-            resetSpLost();
-            conflictLit = ~mkLit(flagged[i]);
-            return false;
-        }
+        assert(solver.value(flagged[i]) != l_False);
+        unfoundedAtCall(flagged[i], unfoundedAtCall());
+        if(conflictLit != lit_Undef) continue;
+        if(solver.value(flagged[i]) == l_True) conflictLit = ~mkLit(flagged[i]);
     }
+    if(conflictLit != lit_Undef) {
+        trace(sp, 10, "Conflict on " << conflictLit << "@" << solver.decisionLevel());
+        return false;
+    }
+    
     for(int i = 0; i < flagged.size(); i++) {
         assert(solver.value(flagged[i]) == l_Undef);
         trace(sp, 10, "Infer " << ~mkLit(flagged[i]));
         solver.uncheckedEnqueueFromPropagator(~mkLit(flagged[i]), this);
-        unfoundedAtCall(flagged[i], unfoundedAtCall());
     }
-    resetSpLost();
+    resetFlagged();
     return true;
     
 }
@@ -85,49 +99,42 @@ bool SourcePointers::canBeSp(const SuppData& s) const {
     return true;
 }
 
-void SourcePointers::setSp(Var v, Lit lit) {
+void SourcePointers::rebuildSp() {
     struct VarLit { 
         inline VarLit(Var v, Lit l) : var(v), lit(l) {} 
         Var var; 
         Lit lit; 
     };
-    vec<VarLit> stack;
-    stack.push(VarLit(v, lit));
-    flag(v, false);
-    
-    do{
-        v = stack.last().var;
-        lit = stack.last().lit;
-        stack.pop();
+    vec<VarLit> queue;
 
-        trace(sp, 20, "Set sp of " << mkLit(v) << " to " << lit);
+    for(int i = 0; i < flagged.size(); i++) {
+        Var v = flagged[i];
+        if(!flag(v)) continue;
+        vec<SuppData>& s = supp(v);
+        for(int j = 0; j < s.size(); j++) {
+            if(!canBeSp(s[j])) continue;
+            queue.push(VarLit(v, s[j].body));
+            flag(v, false);
+            break;
+        }
+    }
+    
+    for(int i = 0; i < queue.size(); i++) {
+        Var v = queue[i].var;
+        Lit lit = queue[i].lit;
+
+        trace(sp, 10, "Set sp of " << mkLit(v) << " to " << lit);
         sp(v) = lit;
-        spOf(lit).push(v);
 
         vec<SuppIndex>& rec = inRecBody(v);
         for(int i = 0; i < rec.size(); i++) {
             if(!flag(rec[i].var)) continue;
             SuppData& s = supp(rec[i]);
-            if(canBeSp(s)) {
-                stack.push(VarLit(rec[i].var, s.body));
-                flag(rec[i].var, false);
-            }
+            if(!canBeSp(s)) continue;
+            queue.push(VarLit(rec[i].var, s.body));
+            flag(rec[i].var, false);
         }
-    }while(stack.size() > 0);
-}
-
-void SourcePointers::rebuildSp() {
-    for(int i = 0; i < flagged.size(); i++) {
-        Var v = flagged[i];
-        if(!flag(v)) continue;
-        trace(sp, 10, "Search sp for " << mkLit(v));
-        vec<SuppData>& s = supp(v);
-        for(int j = 0; j < s.size(); j++) {
-            if(!canBeSp(s[j])) continue;
-            setSp(v, s[j].body);
-            break;
-        }
-    }
+    }    
 
     int j = 0;
     for(int i = 0; i < flagged.size(); i++) {
@@ -135,24 +142,6 @@ void SourcePointers::rebuildSp() {
         flagged[j++] = flagged[i];
     }
     flagged.shrink_(flagged.size()-j);
-}
-
-bool SourcePointers::unsetSp(Var v) {
-    trace(sp, 20, "Unset sp of " << mkLit(v));
-    if(!addToSpLost(v)) return false;
-    vec<Var> stack;
-    stack.push(v);
-    do{
-        v = stack.last();
-        stack.pop();
-        vec<SuppIndex>& rec = inRecBody(v);
-        for(int i = 0; i < rec.size(); i++) {
-            if(sp(rec[i].var) != supp(rec[i]).body) continue;
-            trace(sp, 25, "Unset sp of " << mkLit(rec[i].var));
-            if(addToSpLost(rec[i].var)) stack.push(rec[i].var);
-        }
-    }while(stack.size() > 0);
-    return true;
 }
 
 bool SourcePointers::addToFlagged(Var v) {
@@ -167,29 +156,32 @@ void SourcePointers::resetFlagged() {
     flagged.clear();
 }
 
-bool SourcePointers::addToSpLost(Var v) {
-    if(solver.value(v) == l_False || flag(v)) return false;
-    flag(v, true);
-    flagged.push(v);
+bool SourcePointers::addToFlagged2(Var v) {
+    if(flag2(v)) return false;
+    flag2(v, true);
+    flagged2.push(v);
     return true;
 }
 
-void SourcePointers::resetSpLost() { 
-    for(int i = 0; i < flagged.size(); i++) {
-        if(removedFromSpOf(flagged[i])) {
-            spOf(sp(flagged[i])).push(flagged[i]);
-            removedFromSpOf(flagged[i], false);
-        }
-        flag(flagged[i], false);
-    }
-    flagged.clear();
+void SourcePointers::resetFlagged2() {
+    for(int i = 0; i < flagged2.size(); i++) flag2(flagged2[i], false);
+    flagged2.clear();
+}
+
+bool SourcePointers::addToSpLost(Var v) {
+    if(solver.value(v) == l_False || flag(v)) return false;
+    trace(sp, 20, "Unset sp of " << mkLit(v));
+    flag(v, true);
+    flagged.push(v);
+    return true;
 }
 
 bool SourcePointers::activate() {
     assert(solver.decisionLevel() == 0);
     trace(sp, 1, "Activate");
     for(int i = 0; i < data.vars(); i++) addToSpLost(data.var(i));
-    return onSimplify();
+    if(!checkInferences()) { vec<Lit> tmp; return solver.addClause(tmp); }
+    return true;
 }
 
 void SourcePointers::add(Var atom, Lit body, vec<Var>& rec) {
@@ -200,70 +192,71 @@ void SourcePointers::add(Var atom, Lit body, vec<Var>& rec) {
     supp(atom).push();
     SuppData& s = supp(atom).last();
     s.body = body;
+    spOf(body).push(atom);
     for(int i = 0; i < rec.size(); i++) {
         s.rec.push(rec[i]);
-        inRecBody(rec[i]).push(SuppIndex(atom, i));
+        inRecBody(rec[i]).push(SuppIndex(atom, supp(atom).size()-1));
     }
     
     rec.clear();
 }
 
-bool SourcePointers::onSimplify() {
-    rebuildSp();
-    
-    for(int i = 0; i < flagged.size(); i++) {
-        assert(flag(flagged[i]));
-        solver.uncheckedEnqueueFromPropagator(~mkLit(flagged[i]), this);
-    }
-    resetSpLost();
-    
-    return true;
-}
-
 void SourcePointers::getReason(Lit lit, vec<Lit>& ret) {
-    getReason_(lit, solver.assignedIndex(lit), unfoundedAtCall(var(lit)), ret);
+    assert(ret.size() == 0);
+    assert(sign(lit));
+    assert(flagged.size() == 0);
+    
+    computeReason(lit, ret);
+    
+    trace(sp, 25, "Reason: " << ret);
 }
 
 void SourcePointers::getConflict(vec<Lit>& ret) {
-    getReason_(conflictLit, solver.nAssigns(), unfoundedAtCall(), ret);
+    assert(ret.size() == 0);
+    assert(sign(conflictLit));
+    assert(flagged.size() > 0);
+    
+    computeReason(conflictLit, ret);
+    resetFlagged();
+    
+    assert(ret[0] == conflictLit);
+    if(solver.level(var(conflictLit)) == solver.decisionLevel()) return;
+    for(int i = 1; i < ret.size(); i++) {
+        if(solver.level(var(ret[i])) != solver.decisionLevel()) continue;
+        ret[0] = ret[i];
+        ret[i] = conflictLit;
+        trace(sp, 30, "Reordered reason: " << ret);
+        return;
+    }
+    assert(0);
 }
 
-void SourcePointers::getReason_(Lit lit, int index, unsigned uac, vec<Lit>& ret) {
+void SourcePointers::computeReason(Lit lit, vec<Lit>& ret) {
     assert(ret.size() == 0);
-    trace(sp, 20, "Computing reason for " << lit);
     assert(sign(lit));
+    assert(flagged2.size() == 0);
+    trace(sp, 20, "Computing reason for " << lit);
     
     ret.push(lit);
-    struct Cell {
-        inline Cell(Var v_, int index_, unsigned uac_) : v(v_), index(index_), uac(uac_) {}
-        Var v;
-        int index;
-        unsigned uac;
-    };
-    vec<Cell> stack;
-    stack.push(Cell(var(lit), index, uac));
-    Var v;
+    vec<Var> stack;
+    stack.push(var(lit));
     do{
-        v = stack.last().v;
-        index = stack.last().index;
-        uac = stack.last().uac;
+        Var v = stack.last();
+        int index = flag(v) ? solver.nAssigns() : solver.assignedIndex(v);
         stack.pop();
         
-        if(addToFlagged(v)) {
+        if(addToFlagged2(v)) {
             vec<SuppData>& s = supp(v);
             for(int i = 0; i < s.size(); i++) {
                 SuppData& si = s[i];
                 if(solver.value(si.body) == l_False && solver.assignedIndex(si.body) < index) { ret.push(si.body); continue; }
                 for(int j = 0; j < si.rec.size(); j++) {
-                    unsigned uac_ = unfoundedAtCall(si.rec[j]);
-                    if(uac_ <= uac) { stack.push(Cell(si.rec[j], solver.assignedIndex(si.rec[j]), uac_)); break; }
+                    if(unfoundedAtCall(si.rec[j]) <= unfoundedAtCall(v)) { stack.push(si.rec[j]); break; }
                 }
             }
         }
     }while(stack.size() > 0);
-    resetFlagged();
-    
-    trace(sp, 25, "Reason: " << ret);
+    resetFlagged2();
 }
 
 void SourcePointers::nextCall() {

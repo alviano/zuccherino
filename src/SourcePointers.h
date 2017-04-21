@@ -51,13 +51,13 @@ private:
         vec<Var> rec;
     };
     struct VarData : VarDataBase {
-        inline VarData() : unfoundedAtCall(0), flag(0), removedFromSpOf(0) {}
+        inline VarData() : unfoundedAtCall(0), flag(0), flag2(0) {}
         Lit sp;
         vec<SuppData> supp;
         vec<SuppIndex> inRecBody;
         unsigned unfoundedAtCall:30;
         unsigned flag:1;
-        unsigned removedFromSpOf:1;
+        unsigned flag2:1;
     };
     struct LitData : LitDataBase {
         vec<Var> spOf;
@@ -73,30 +73,31 @@ private:
     inline void unfoundedAtCall(Var v, unsigned x) { data(v).unfoundedAtCall = x; }
     inline bool flag(Var v) const { return data(v).flag; }
     inline void flag(Var v, bool x) { data(v).flag = x; }
-    inline bool removedFromSpOf(Var v) const { return data(v).removedFromSpOf; }
-    inline void removedFromSpOf(Var v, bool x) { data(v).removedFromSpOf = x; }
+    inline bool flag2(Var v) const { return data(v).flag2; }
+    inline void flag2(Var v, bool x) { data(v).flag2 = x; }
     
     inline vec<Var>& spOf(Lit lit) { return data(lit).spOf; }
     
     vec<Var> flagged;
+    vec<Var> flagged2;
     bool addToFlagged(Var v);
     void resetFlagged();
+    bool addToFlagged2(Var v);
+    void resetFlagged2();
     bool addToSpLost(Var v);
-    void resetSpLost();
     
     unsigned unfoundedAtCall_;
     inline unsigned unfoundedAtCall() const { return unfoundedAtCall_; }
     void nextCall();
 
     bool canBeSp(const SuppData& s) const;
-    void setSp(Var atom, Lit source_pointer);
     void rebuildSp();
     bool unsetSp(Var atom);
     
-    void getReason_(Lit lit, int index, unsigned unfoundedAtCall, vec<Lit>& ret);
-    
-    bool onSimplify();
+    bool checkInferences();
     void removeSp();
+    
+    void computeReason(Lit lit, vec<Lit>& ret);
 };
 
 }
