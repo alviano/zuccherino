@@ -134,6 +134,11 @@ void ASP::parse(gzFile in_) {
             if(spPropagator == NULL) spPropagator = new SourcePointers(*this);
             spPropagator->add(var(lits[0]), lits[1], rec);
         }
+        else if(*in == 'n') {
+            ++in;
+            int n = parseInt(in);
+            while(nVars() < n) { newVar(); if(option_n != 1) setFrozen(nVars()-1, true); }
+        }
         else {
             Glucose::readClause(in, *this, lits);
             if(!addClause_(lits)) return;
