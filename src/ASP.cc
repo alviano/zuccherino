@@ -36,6 +36,7 @@ ASP::~ASP() {
 
 Lit ASP::parseLit(Glucose::StreamBuffer& in) {
     int parsed_lit = parseInt(in);
+    if(parsed_lit == 0) return lit_Undef;
     Var var = abs(parsed_lit)-1;
     while (var >= nVars()) newVar();
     return (parsed_lit > 0) ? mkLit(var) : ~mkLit(var);
@@ -70,18 +71,20 @@ void ASP::parse(gzFile in_) {
             Lit lit = parseLit(in);
             weight = parseLong(in);
             int level = parseInt(in);
-            if(weight <= 0) cerr << "PARSE ERROR! Weights of soft literals must be positive: " << static_cast<char>(*in) << endl, exit(3);
+            if(weight < 0) cerr << "PARSE ERROR! Weights of soft literals must be positive: " << static_cast<char>(*in) << endl, exit(3);
             if(level < 0) cerr << "PARSE ERROR! Levels of soft literals must be nonnegative: " << static_cast<char>(*in) << endl, exit(3);
-            if(data.has(lit) || data.has(~lit)) cerr << "PARSE ERROR! Repeated soft literal: " << static_cast<char>(*in) << endl, exit(3);
+            if(lit != lit_Undef) {
+                if(data.has(lit) || data.has(~lit)) cerr << "PARSE ERROR! Repeated soft literal: " << static_cast<char>(*in) << endl, exit(3);
             
-            data.push(*this, lit);
-            this->weight(lit) = weight;
-            this->level(lit) = level;
-            softLits.push(lit);
+                data.push(*this, lit);
+                this->weight(lit) = weight;
+                this->level(lit) = level;
+                softLits.push(lit);
+            }
             
             Level l;
             l.level = level;
-            l.lowerBound = 0;
+            l.lowerBound = lit != lit_Undef ? 0 : weight;
             l.upperBound = INT64_MAX;
             int i = 0;
             for(; i < levels.size(); i++) {
@@ -119,7 +122,7 @@ void ASP::parse(gzFile in_) {
             Glucose::readClause(in, *this, lits);
             for(int i = 0; i < lits.size(); i++) weights.push(parseLong(in));
             weight = parseLong(in);
-            wcPropagator.addGreaterEqual(lits, weights, weight);
+            if(!wcPropagator.addGreaterEqual(lits, weights, weight)) return;
         }
         else if(*in == 's') {
             ++in;
@@ -133,7 +136,7 @@ void ASP::parse(gzFile in_) {
         }
         else {
             Glucose::readClause(in, *this, lits);
-            addClause_(lits);
+            if(!addClause_(lits)) return;
         }
     }
     
@@ -145,9 +148,9 @@ void ASP::parse(gzFile in_) {
     }
     for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
     
-    for(int i = 0; i < visible.size(); i++) setFrozen(var(visible[i]), true);
+    if(option_n != 1) for(int i = 0; i < visible.size(); i++) setFrozen(var(visible[i]), true);
 
-    if(spPropagator != NULL) spPropagator->activate();
+    if(spPropagator != NULL && !spPropagator->activate()) return;
 }
 
 void ASP::printModel() const {
