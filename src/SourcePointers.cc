@@ -218,7 +218,6 @@ void SourcePointers::getConflict(vec<Lit>& ret) {
     
     computeReason(conflictLit, ret);
     resetFlagged();
-    
     assert(ret[0] == conflictLit);
     if(solver.level(var(conflictLit)) == solver.decisionLevel()) return;
     for(int i = 1; i < ret.size(); i++) {
@@ -249,9 +248,13 @@ void SourcePointers::computeReason(Lit lit, vec<Lit>& ret) {
             vec<SuppData>& s = supp(v);
             for(int i = 0; i < s.size(); i++) {
                 SuppData& si = s[i];
-                if(solver.value(si.body) == l_False && solver.assignedIndex(si.body) < index) { ret.push(si.body); continue; }
+                if(solver.value(si.body) == l_False && solver.assignedIndex(si.body) < index) { 
+                    if(solver.level(var(si.body)) != 0) ret.push(si.body);
+                    continue; 
+                }
                 for(int j = 0; j < si.rec.size(); j++) {
-                    if(unfoundedAtCall(si.rec[j]) <= unfoundedAtCall(v)) { stack.push(si.rec[j]); break; }
+                    if(unfoundedAtCall(si.rec[j]) > unfoundedAtCall(v)) continue;
+                    if(solver.value(si.rec[j]) == l_False || flag(si.rec[j])) { stack.push(si.rec[j]); break; }
                 }
             }
         }
