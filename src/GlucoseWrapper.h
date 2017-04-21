@@ -52,8 +52,8 @@ public:
 
     virtual bool simplifyPropagators();
     virtual bool propagatePropagators();
-    virtual bool conflictPropagators(vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
-    virtual bool reasonPropagators(Lit lit, vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
+    virtual bool conflictPropagators(vec<Lit>& conflict);
+    virtual bool reasonPropagators(Lit lit, vec<Lit>& reason);
     virtual bool reasonPropagators(Lit lit);
     
     inline void add(Propagator* ph) { assert(ph != NULL); propagators.push(ph); }
@@ -62,10 +62,6 @@ protected:
     vec<int> trailPosition;
     int nTrailPosition;
     
-    void processConflictPropagators(vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
-    void processReasonPropagators(const vec<Lit>& clause, vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC);
-    void processReasonPropagators(const vec<Lit>& clause);
-
 private:
     vec<Propagator*> propagators;
     vec<Lit> conflictFromPropagators;

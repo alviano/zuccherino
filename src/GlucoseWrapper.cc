@@ -177,130 +177,42 @@ bool GlucoseWrapper::propagatePropagators() {
     return true;
 }
 
-bool GlucoseWrapper::conflictPropagators(vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC) {
+bool GlucoseWrapper::conflictPropagators(vec<Lit>& conflict) {
     if(conflictFromPropagators.size() == 0) return false;
-    processConflictPropagators(out_learnt, selectors, pathC);
-    assert(conflictFromPropagators.size() == 0);
+    conflictFromPropagators.moveTo(conflict);
     return true;
 }
 
-bool GlucoseWrapper::reasonPropagators(Lit lit, vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC) {
+bool GlucoseWrapper::reasonPropagators(Lit lit, vec<Lit>& reason_) {
     assert(reason(var(lit)) == CRef_Undef);
     if(reasonFromPropagators[var(lit)] == NULL) return false;
-    
-    vec<Lit> reason;
-    reasonFromPropagators[var(lit)]->getReason(lit, reason);
-    
-    assert(reason.size() > 0);
-    assert(reason[0] == lit);
-    processReasonPropagators(reason, out_learnt, selectors, pathC);
+    reason_.clear();
+    reasonFromPropagators[var(lit)]->getReason(lit, reason_);
+    assert(reason_.size() > 0);
+    assert(reason_[0] == lit);
     return true;
 }
 
 bool GlucoseWrapper::reasonPropagators(Lit lit) {
+    assert(decisionLevel() != 0);
     assert(reason(var(lit)) == CRef_Undef);
     if(reasonFromPropagators[var(lit)] == NULL) return false;
     
-    vec<Lit> reason;
-    reasonFromPropagators[var(lit)]->getReason(lit, reason);
+    vec<Lit> clause;
+    reasonFromPropagators[var(lit)]->getReason(lit, clause);
     
-    assert(reason.size() > 0);
-    assert(reason[0] == lit);
-    processReasonPropagators(reason);
-    return true;
-}
-
-void GlucoseWrapper::processConflictPropagators(vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC) {
-    assert(conflictFromPropagators.size() > 0);
-    assert(decisionLevel() != 0);
-    
-    Lit conflictLit = conflictFromPropagators[0];
-    if(!seen[var(conflictLit)] && level(var(conflictLit)) > 0) {
-        if(!isSelector(var(conflictLit))) varBumpActivity(var(conflictLit));
-        seen[var(conflictLit)] = 1;
-        assert_msg(level(var(conflictLit)) == decisionLevel(), "conflictLit=" << conflictLit << "; level=" << level(var(conflictLit)) << "; decisionLevel=" << decisionLevel());
-        pathC++;
-        // UPDATEVARACTIVITY trick (see competition'09 companion paper)
-        if(!isSelector(var(conflictLit)) && (reason(var(conflictLit)) != CRef_Undef) && ca[reason(var(conflictLit))].learnt())
-            lastDecisionLevel.push(conflictLit);
-    }
-    
-    for(int i = 1; i < conflictFromPropagators.size(); i++) {
-        Lit q = conflictFromPropagators[i];
-        assert(value(q) == l_False);
-        
-        if(seen[var(q)]) continue;
-        if(level(var(q)) == 0) continue;
-        
-        if(!isSelector(var(q)))
-            varBumpActivity(var(q));
-        
-        seen[var(q)] = 1;
-        
-        if(level(var(q)) >= decisionLevel()) {
-            pathC++;
-            // UPDATEVARACTIVITY trick (see competition'09 companion paper)
-            if(!isSelector(var(q)) && (reason(var(q)) != CRef_Undef) && ca[reason(var(q))].learnt())
-                lastDecisionLevel.push(q);
-        }
-        else {
-            if(isSelector(var(q))) {
-                assert(value(q) == l_False);
-                selectors.push(q);
-            }
-            else 
-                out_learnt.push(q);
-        }
-    }
-    conflictFromPropagators.clear();
-}
-
-void GlucoseWrapper::processReasonPropagators(const vec<Lit>& clause, vec<Lit>& out_learnt, vec<Lit>& selectors, int& pathC) {
     assert(clause.size() > 0);
-    assert(decisionLevel() != 0);
-    assert(reason(var(clause[0])) == CRef_Undef);
-    for(int i = 1; i < clause.size(); i++) {
-        Lit q = clause[i];
-        assert(value(q) == l_False);
-        assert(level(var(q)) <= level(var(clause[0])));
-        
-        if(seen[var(q)]) continue;
-        if(level(var(q)) == 0) continue;
-        
-        if(!isSelector(var(q)))
-            varBumpActivity(var(q));
-        
-        seen[var(q)] = 1;
-        
-        if(level(var(q)) >= decisionLevel()) {
-            pathC++;
-            // UPDATEVARACTIVITY trick (see competition'09 companion paper)
-            if(!isSelector(var(q)) && (reason(var(q)) != CRef_Undef) && ca[reason(var(q))].learnt())
-                lastDecisionLevel.push(q);
-        }
-        else {
-            if(isSelector(var(q))) {
-                assert(value(q) == l_False);
-                selectors.push(q);
-            }
-            else 
-                out_learnt.push(q);
-        }
-    }
-}
-    
-void GlucoseWrapper::processReasonPropagators(const vec<Lit>& clause) {
-    assert(clause.size() > 0);
-    assert(decisionLevel() != 0);
+    assert(clause[0] == lit);
     assert(reason(var(clause[0])) == CRef_Undef);
     
     for(int i = 1; i < clause.size(); i++) {
         Lit l = clause[i];
         assert(value(l) == l_False);
         assert(level(var(l)) <= level(var(clause[0])));
-        if(level(var(l)) == 0) continue;
-        seen[var(l)] = 1;
+        if(level(var(l)) > 0) seen[var(l)] = 1;
     }
+
+    return true;
 }
 
 }

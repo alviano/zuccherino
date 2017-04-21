@@ -711,6 +711,7 @@ Lit Solver::pickBranchLit() {
 }
 
 
+
 /*_________________________________________________________________________________________________
 |
 |  analyze : (confl : Clause*) (out_learnt : vec<Lit>&) (out_btlevel : int&)  ->  [void]
@@ -731,7 +732,7 @@ Lit Solver::pickBranchLit() {
 void Solver::analyze(CRef confl, vec <Lit> &out_learnt, vec <Lit> &selectors, int &out_btlevel, unsigned int &lbd, unsigned int &szWithoutSelectors) {
     int pathC = 0;
     Lit p = lit_Undef;
-
+    vec<Lit> lits;
 
     // Generate conflict clause:
     //
@@ -739,13 +740,12 @@ void Solver::analyze(CRef confl, vec <Lit> &out_learnt, vec <Lit> &selectors, in
     int index = trail.size() - 1;
     do {
         assert(confl != CRef_Undef); // (otherwise should be UIP)
-        if(confl == CRef_Undef - 1) { if(!conflictPropagators(out_learnt, selectors, pathC)) { assert(0); } }
+        if(confl == CRef_Undef - 1) { if(conflictPropagators(lits)) processReason(p, lits, out_learnt, selectors, pathC); else { assert(0); } }
         else {
             Clause &c = ca[confl];
             // Special case for binary clauses
             // The first one has to be SAT
             if(p != lit_Undef && c.size() == 2 && value(c[0]) == l_False) {
-
                 assert(value(c[1]) == l_True);
                 Lit tmp = c[0];
                 c[0] = c[1], c[1] = tmp;
@@ -780,51 +780,24 @@ void Solver::analyze(CRef confl, vec <Lit> &out_learnt, vec <Lit> &selectors, in
                     }
                 }
             }
-
-
-            for(int j = (p == lit_Undef) ? 0 : 1; j < c.size(); j++) {
-                Lit q = c[j];
-
-                if(!seen[var(q)]) {
-                    if(level(var(q)) == 0) {
-                    } else { // Here, the old case
-                        if(!isSelector(var(q)))
-                            varBumpActivity(var(q));
-
-                        // This variable was responsible for a conflict,
-                        // consider it as a UNSAT assignation for this literal
-                        bumpForceUNSAT(~q); // Negation because q is false here
-
-                        seen[var(q)] = 1;
-                        if(level(var(q)) >= decisionLevel()) {
-                            pathC++;
-                            // UPDATEVARACTIVITY trick (see competition'09 companion paper)
-                            if(!isSelector(var(q)) && (reason(var(q)) != CRef_Undef) && ca[reason(var(q))].learnt())
-                                lastDecisionLevel.push(q);
-                        } else {
-                            if(isSelector(var(q))) {
-                                assert(value(q) == l_False);
-                                selectors.push(q);
-                            } else
-                                out_learnt.push(q);
-                        }
-                    }
-                } //else stats[sumResSeen]++;
-            }
+            
+            processReason(p, c, out_learnt, selectors, pathC);
         }
 
         // Select next clause to look at:
-        bool ret;
-        do {
-            while (!seen[var(trail[index--])]);
+        for(;;) {
+            while (!seen[var(trail[index--])]) assert(0 <= index && index < trail.size());
             p = trail[index + 1];
             confl = reason(var(p));
-            ret = confl == CRef_Undef && reasonPropagators(p, out_learnt, selectors, pathC);
             seen[var(p)] = 0;
-            pathC--;
-        }while(ret);
+            if(--pathC == 0) break;
+            if(confl == CRef_Undef) {
+                if(reasonPropagators(p, lits)) processReason(p, lits, out_learnt, selectors, pathC); else { assert(0); }
+            }
+        }
 
     } while(pathC > 0);
+    assert(pathC == 0);
     out_learnt[0] = ~p;
 
     // Simplify conflict clause:

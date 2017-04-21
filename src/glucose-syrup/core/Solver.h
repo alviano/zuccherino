@@ -399,6 +399,7 @@ protected:
     CRef     propagate        ();                                                      // Perform unit propagation. Returns possibly conflicting clause.
     CRef     propagateUnaryWatches(Lit p);                                                  // Perform propagation on unary watches of p, can find only conflicts
     virtual void cancelUntil      (int level);                                             // Backtrack until a certain level.
+    template<typename Lits> void processReason(Lit p, const Lits& c, vec <Lit> &out_learnt, vec <Lit> &selectors, int &pathC); // zuccherino: moved navigation of clause
     void     analyze          (CRef confl, vec<Lit>& out_learnt, vec<Lit> & selectors, int& out_btlevel,unsigned int &nblevels,unsigned int &szWithoutSelectors);    // (bt = backtrack)
     void     analyzeFinal     (Lit p, vec<Lit>& out_conflict);                         // COULD THIS BE IMPLEMENTED BY THE ORDINARIY "analyze" BY SOME REASONABLE GENERALIZATION?
     bool     litRedundant     (Lit p, uint32_t abstract_levels);                       // (helper method for 'analyze()')
@@ -446,8 +447,8 @@ protected:
     // zuccherino: methods to inject propagators
     virtual inline bool simplifyPropagators() { return true; } // used by simplify(): returns false if a conflict is derived
     virtual inline bool propagatePropagators() { return true; } // used by search(): returns false if a conflict is derived
-    virtual inline bool conflictPropagators(vec<Lit>&, vec<Lit>&, int&) { return false; } // used by analyze(): returns true if the conflict is due to propagators
-    virtual inline bool reasonPropagators(Lit, vec<Lit>&, vec<Lit>&, int&) { return false; } // used by analyze(): returns true if the literal was inferred by a propagator
+    virtual inline bool conflictPropagators(vec<Lit>&) { return false; } // used by analyze(): returns true if the conflict is due to propagators
+    virtual inline bool reasonPropagators(Lit, vec<Lit>&) { return false; } // used by analyze(): returns true if the literal was inferred by a propagator
     virtual inline bool reasonPropagators(Lit) { return false; } // used by analyzeFinal(): returns true if the literal was inferred by a propagator
     virtual inline void onNewDecisionLevel(Lit) {} // used by search() to notify new levels
 
@@ -645,6 +646,38 @@ struct reduceDB_lt {
     }
 };
 
+template<typename Lits>
+void Solver::processReason(Lit p, const Lits& c, vec <Lit> &out_learnt, vec <Lit> &selectors, int &pathC) {
+    for(int j = (p == lit_Undef) ? 0 : 1; j < c.size(); j++) {
+        Lit q = c[j];
+
+        if(!seen[var(q)]) {
+            if(level(var(q)) == 0) {
+            } else { // Here, the old case
+                if(!isSelector(var(q)))
+                    varBumpActivity(var(q));
+
+                // This variable was responsible for a conflict,
+                // consider it as a UNSAT assignation for this literal
+                bumpForceUNSAT(~q); // Negation because q is false here
+
+                seen[var(q)] = 1;
+                if(level(var(q)) >= decisionLevel()) {
+                    pathC++;
+                    // UPDATEVARACTIVITY trick (see competition'09 companion paper)
+                    if(!isSelector(var(q)) && (reason(var(q)) != CRef_Undef) && ca[reason(var(q))].learnt())
+                        lastDecisionLevel.push(q);
+                } else {
+                    if(isSelector(var(q))) {
+                        assert(value(q) == l_False);
+                        selectors.push(q);
+                    } else
+                        out_learnt.push(q);
+                }
+            }
+        } //else stats[sumResSeen]++;
+    }
+}
 
 }
 
