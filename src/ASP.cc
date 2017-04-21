@@ -88,7 +88,7 @@ void ASP::parse(gzFile in_) {
             l.upperBound = INT64_MAX;
             int i = 0;
             for(; i < levels.size(); i++) {
-                if(levels[i].level == l.level) break;
+                if(levels[i].level == l.level) { levels[i].lowerBound += l.lowerBound; break; }
                 if(levels[i].level > l.level) {
                     Level tmp = levels[i];
                     levels[i] = l;
@@ -155,6 +155,8 @@ void ASP::parse(gzFile in_) {
     
     if(option_n != 1) for(int i = 0; i < visible.size(); i++) setFrozen(var(visible[i]), true);
 
+    if(!simplify()) return;
+
     if(spPropagator != NULL && !spPropagator->activate()) return;
 }
 
@@ -187,7 +189,9 @@ void ASP::printModel() const {
 }
 
 lbool ASP::solve() {
+    if(!ok) return l_False;
     do{
+        assert(levels.size() > 0);
         lbool status;
         int64_t limit = computeNextLimit(INT64_MAX);
         for(;;) {
