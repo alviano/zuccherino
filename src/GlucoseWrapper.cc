@@ -140,6 +140,7 @@ void GlucoseWrapper::cancelUntil(int level) {
 
 void GlucoseWrapper::uncheckedEnqueueFromPropagator(Lit lit, Propagator* propagator) {
     assert(propagator != NULL);
+    assert(value(lit) == l_Undef);
     uncheckedEnqueue(lit);
     assert(nTrailPosition + 1 == nAssigns());
     trailPosition[var(assigned(nTrailPosition))] = nTrailPosition;
@@ -164,7 +165,6 @@ bool GlucoseWrapper::propagatePropagators() {
     
     assert(decisionLevel() > 0);
     while(nTrailPosition < nAssigns()) { trailPosition[var(assigned(nTrailPosition))] = nTrailPosition; nTrailPosition++; }
-    
     int n = nAssigns();
     for(int i = 0; i < propagators.size(); i++) {
         if(!propagators[i]->propagate()) {
@@ -217,7 +217,7 @@ void GlucoseWrapper::processConflictPropagators(vec<Lit>& out_learnt, vec<Lit>& 
     if(!seen[var(conflictLit)] && level(var(conflictLit)) > 0) {
         if(!isSelector(var(conflictLit))) varBumpActivity(var(conflictLit));
         seen[var(conflictLit)] = 1;
-        assert(level(var(conflictLit)) == decisionLevel());
+        assert_msg(level(var(conflictLit)) == decisionLevel(), "conflictLit=" << conflictLit << "; level=" << level(var(conflictLit)) << "; decisionLevel=" << decisionLevel());
         pathC++;
         // UPDATEVARACTIVITY trick (see competition'09 companion paper)
         if(!isSelector(var(conflictLit)) && (reason(var(conflictLit)) != CRef_Undef) && ca[reason(var(conflictLit))].learnt())
