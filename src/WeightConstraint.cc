@@ -107,14 +107,14 @@ bool WeightConstraintPropagator::addGreaterEqual(vec<Lit>& lits_, vec<int64_t>& 
         assert(solver.value(l) == l_Undef);
         if(weights[i] < s) break;
         trace(wc, 15, "Infer " << l);
-        if(!solver.addClause(l)) { vec<Lit> tmp; return solver.addClause(tmp); }
+        if(!solver.addClause(l)) return false;
     }
 
     if(bound == s) {
-        for(int i = 0; i < lits.size(); i++) if(!solver.addClause(lits[i])) { vec<Lit> tmp; return solver.addClause(tmp); }
+        for(int i = 0; i < lits.size(); i++) if(!solver.addClause(lits[i])) return false;
         return true;
     }
-    if(bound > s) { vec<Lit> tmp; return solver.addClause(tmp); }
+    if(bound > s) return solver.addEmptyClause();
 
     trace(wc, 55, "Added WC: lits=" << lits << "; weights=" << weights << "; bound=" << bound);
 

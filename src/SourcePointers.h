@@ -25,7 +25,7 @@ namespace zuccherino {
 
 class SourcePointers: public Propagator {
 public:
-    inline SourcePointers(GlucoseWrapper& solver) : Propagator(solver), nextToPropagate(0), unfoundedAtCall_(0) {}
+    inline SourcePointers(GlucoseWrapper& solver) : Propagator(solver), nextToPropagate(0) {}
 
     virtual void onCancel();
     virtual bool simplify();
@@ -51,11 +51,10 @@ private:
         vec<Var> rec;
     };
     struct VarData : VarDataBase {
-        inline VarData() : unfoundedAtCall(0), flag(0), flag2(0) {}
+        inline VarData() : flag(0), flag2(0) {}
         Lit sp;
         vec<SuppData> supp;
         vec<SuppIndex> inRecBody;
-        unsigned unfoundedAtCall:30;
         unsigned flag:1;
         unsigned flag2:1;
     };
@@ -69,8 +68,6 @@ private:
     inline vec<SuppData>& supp(Var v) { return data(v).supp; }
     inline SuppData& supp(SuppIndex i) { return supp(i.var)[i.index]; }
     inline vec<SuppIndex>& inRecBody(Var v) { return data(v).inRecBody; }
-    inline unsigned unfoundedAtCall(Var v) const { return data(v).unfoundedAtCall; }
-    inline void unfoundedAtCall(Var v, unsigned x) { data(v).unfoundedAtCall = x; }
     inline bool flag(Var v) const { return data(v).flag; }
     inline void flag(Var v, bool x) { data(v).flag = x; }
     inline bool flag2(Var v) const { return data(v).flag2; }
@@ -86,10 +83,6 @@ private:
     void resetFlagged2();
     bool addToSpLost(Var v);
     
-    unsigned unfoundedAtCall_;
-    inline unsigned unfoundedAtCall() const { return unfoundedAtCall_; }
-    void nextCall();
-
     bool canBeSp(const SuppData& s) const;
     void rebuildSp();
     bool unsetSp(Var atom);

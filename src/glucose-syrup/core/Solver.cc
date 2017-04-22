@@ -739,8 +739,8 @@ void Solver::analyze(CRef confl, vec <Lit> &out_learnt, vec <Lit> &selectors, in
     out_learnt.push(); // (leave room for the asserting literal)
     int index = trail.size() - 1;
     do {
-        assert(confl != CRef_Undef); // (otherwise should be UIP)
-        if(confl == CRef_Undef - 1) { if(conflictPropagators(lits)) processReason(p, lits, out_learnt, selectors, pathC); else { assert(0); } }
+        if(confl == CRef_Undef) { if(reasonPropagators(p, lits)) processReason(p, lits, out_learnt, selectors, pathC); else { assert(0); } }
+        else if(confl == CRef_Undef - 1) { if(conflictPropagators(lits)) processReason(p, lits, out_learnt, selectors, pathC); else { assert(0); } }
         else {
             Clause &c = ca[confl];
             // Special case for binary clauses
@@ -785,16 +785,11 @@ void Solver::analyze(CRef confl, vec <Lit> &out_learnt, vec <Lit> &selectors, in
         }
 
         // Select next clause to look at:
-        for(;;) {
-            while (!seen[var(trail[index--])]) assert(0 <= index && index < trail.size());
-            p = trail[index + 1];
-            confl = reason(var(p));
-            seen[var(p)] = 0;
-            if(--pathC == 0) break;
-            if(confl == CRef_Undef) {
-                if(reasonPropagators(p, lits)) processReason(p, lits, out_learnt, selectors, pathC); else { assert(0); }
-            }
-        }
+        while (!seen[var(trail[index--])]) assert(0 <= index && index < trail.size());
+        p = trail[index + 1];
+        confl = reason(var(p));
+        seen[var(p)] = 0;
+        pathC--;
 
     } while(pathC > 0);
     assert(pathC == 0);

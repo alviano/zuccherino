@@ -58,10 +58,10 @@ bool CardinalityConstraintPropagator::addGreaterEqual(vec<Lit>& lits_, int bound
     if(bound <= 0) return true;
     if(bound == 1) { return solver.addClause(lits); }
     if(bound == lits.size()) {
-        for(int i = 0; i < lits.size(); i++) if(!solver.addClause(lits[i])) { vec<Lit> tmp; return solver.addClause(tmp); }
+        for(int i = 0; i < lits.size(); i++) if(!solver.addClause(lits[i])) return false;
         return true;
     }
-    if(bound > lits.size()) { vec<Lit> tmp; return solver.addClause(tmp); }
+    if(bound > lits.size()) return solver.addEmptyClause();
     
     add(new CardinalityConstraint(lits, bound));
     return true;

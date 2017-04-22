@@ -149,6 +149,20 @@ void GlucoseWrapper::uncheckedEnqueueFromPropagator(Lit lit, Propagator* propaga
     reasonFromPropagators[var(lit)] = propagator;
 }
 
+void GlucoseWrapper::uncheckedEnqueueFromPropagator(vec<Lit>& lits, Propagator* propagator) {
+    assert(propagator != NULL);
+    assert(lits.size() > 0);
+    for(int i = 0; i < lits.size(); i++) {
+        Lit lit = lits[i];
+        assert(value(lit) == l_Undef);
+        uncheckedEnqueue(lit);
+        assert(nTrailPosition + i + 1 == nAssigns());
+        trailPosition[var(assigned(nTrailPosition + i))] = nTrailPosition;
+        reasonFromPropagators[var(lit)] = propagator;
+    }
+    nTrailPosition += lits.size();
+}
+
 bool GlucoseWrapper::simplifyPropagators() {
     assert(decisionLevel() == 0);
     while(nTrailPosition < nAssigns()) { trailPosition[var(assigned(nTrailPosition))] = nTrailPosition; nTrailPosition++; }

@@ -34,6 +34,7 @@ public:
     virtual void onNewDecisionLevel(Lit lit);
     
     void uncheckedEnqueueFromPropagator(Lit lit, Propagator* propagator);
+    void uncheckedEnqueueFromPropagator(vec<Lit>& lits, Propagator* propagator);
     
     using Glucose::SimpSolver::decisionLevel;
     using Glucose::SimpSolver::level;
@@ -56,6 +57,7 @@ public:
     virtual bool reasonPropagators(Lit lit, vec<Lit>& reason);
     virtual bool reasonPropagators(Lit lit);
     
+    inline bool addEmptyClause() { vec<Lit> tmp; return addClause_(tmp); }
     inline void add(Propagator* ph) { assert(ph != NULL); propagators.push(ph); }
     
 protected:
