@@ -29,6 +29,8 @@ public:
     Propagator(GlucoseWrapper& solver);
     virtual ~Propagator() {}
     
+    virtual bool activate() = 0;
+    
     virtual void onCancel() = 0;
     virtual bool simplify() = 0;
     virtual bool propagate() = 0;

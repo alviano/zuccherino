@@ -27,11 +27,8 @@ string CardinalityConstraint::toString() const {
     return ss.str();
 }
 
-bool CardinalityConstraintPropagator::addGreaterEqual(vec<Lit>& lits_, int bound) {
+lbool CardinalityConstraintPropagator::preprocessGreaterEqual(vec<Lit>& lits, int& bound) {
     assert(solver.decisionLevel() == 0);
-    
-    vec<Lit> lits;
-    lits_.moveTo(lits);
     
     int j = 0;
     for(int i = 0; i < lits.size(); i++) {
@@ -55,15 +52,24 @@ bool CardinalityConstraintPropagator::addGreaterEqual(vec<Lit>& lits_, int bound
         lits.shrink_(lits.size() - j);
     }
     
-    if(bound <= 0) return true;
-    if(bound == 1) { return solver.addClause(lits); }
+    if(bound <= 0) return l_True;
+    if(bound == 1) { return solver.addClause(lits) ? l_True : l_False; }
     if(bound == lits.size()) {
-        for(int i = 0; i < lits.size(); i++) if(!solver.addClause(lits[i])) return false;
-        return true;
+        for(int i = 0; i < lits.size(); i++) if(!solver.addClause(lits[i])) return l_False;
+        return l_True;
     }
-    if(bound > lits.size()) return solver.addEmptyClause();
+    if(bound > lits.size()) { solver.addEmptyClause(); return l_False; }
     
-    add(new CardinalityConstraint(lits, bound));
+    return l_Undef;
+}
+
+bool CardinalityConstraintPropagator::addGreaterEqual(vec<Lit>& lits_, int bound) {
+    vec<Lit> lits;
+    lits_.moveTo(lits);
+    
+    lbool res = preprocessGreaterEqual(lits, bound);
+    if(res != l_Undef) return res == l_True;
+    add(createCardinalityConstraint(lits, bound));
     return true;
 }
 
@@ -188,6 +194,71 @@ void CardinalityConstraintPropagator::sort(vec<Lit>& lits) {
        }
        n = newn;
     }
+}
+
+bool CardinalityConstraintPropagatorWithCompiler::activate() {
+    vec<Lit> lits;
+    for(int i = 0; i < atMostOne.size(); i++) {
+        vec<Lit>& x_ = atMostOne[i];
+        vec<Lit> x; for(int i = 0; i < x_.size(); i++) x.push(~x_[i]);
+        
+        vec<Lit> s;
+        s.push(lit_Undef);
+        s.push(~x[0]);
+        for(int j = 2; j < x.size()-1; j++) {
+            solver.newVar();
+            s.push(mkLit(solver.nVars()-1));
+            if(!solver.addClause(~s[j], s[j-1])) return false;
+            if(!solver.addClause(~s[j], ~x[j-1])) return false;
+            if(!solver.addClause(~s[j-1], x[j-1], s[j])) return false;
+        }
+        s.push(lit_Undef);
+        assert(s.size() == x.size());
+        
+        vec<Lit> d;
+        d.push(lit_Undef);
+        d.push(lit_Undef);
+        for(int j = 2; j < x.size()-1; j++) {
+            solver.newVar();
+            d.push(mkLit(solver.nVars()-1));
+        }
+        d.push(lit_Undef);
+        for(int j = 2; j < x.size()-1; j++) {
+            if(!solver.addClause(~d[j], x[j], d[j+1])) return false;
+            if(!solver.addClause(~x[j], d[j])) return false;
+            if(!solver.addClause(~d[j+1], d[j])) return false;
+        }
+        assert(d.size() == x.size());
+        
+        if(!solver.addClause(~x[0], ~x[1])) return false;
+        if(!solver.addClause(~x[0], ~d[2])) return false;
+        int j = 1;
+        for(; j < x.size()-1; j++) {
+            if(!solver.addClause(~x[j], s[j])) return false;
+            if(!solver.addClause(~x[j], ~d[j+1])) return false;
+        }
+        if(!solver.addClause(~x[j], s[j-1])) return false;
+        if(!solver.addClause(~x[j], ~x[j-1])) return false;
+
+    }
+    return true;
+}
+
+
+bool CardinalityConstraintPropagatorWithCompiler::addGreaterEqual(vec<Lit>& lits_, int bound) {
+    vec<Lit> lits;
+    lits_.moveTo(lits);
+    
+    lbool res = preprocessGreaterEqual(lits, bound);
+    if(res != l_Undef) return res == l_True;
+    
+    if(bound == lits.size() - 1) {
+        atMostOne.push();
+        lits.moveTo(atMostOne.last());
+    }
+    else
+        add(createCardinalityConstraint(lits, bound));
+    return true;
 }
 
 }

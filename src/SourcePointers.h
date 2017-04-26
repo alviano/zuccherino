@@ -27,6 +27,8 @@ class SourcePointers: public Propagator {
 public:
     inline SourcePointers(GlucoseWrapper& solver) : Propagator(solver), nextToPropagate(0) {}
 
+    virtual bool activate();
+    
     virtual void onCancel();
     virtual bool simplify();
     virtual bool propagate();
@@ -35,7 +37,6 @@ public:
     virtual void getReason(Lit lit, vec<Lit>& ret);
 
     void add(Var atom, Lit body, vec<Var>& rec);
-    bool activate();
 
 private:
     int nextToPropagate;

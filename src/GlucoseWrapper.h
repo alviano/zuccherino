@@ -59,6 +59,7 @@ public:
     
     inline bool addEmptyClause() { vec<Lit> tmp; return addClause_(tmp); }
     inline void add(Propagator* ph) { assert(ph != NULL); propagators.push(ph); }
+    bool activatePropagators();
     
 protected:
     vec<int> trailPosition;

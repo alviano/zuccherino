@@ -216,6 +216,7 @@ void SourcePointers::getConflict(vec<Lit>& ret) {
     computeReason(conflictLit, ret);
     resetFlagged();
     assert(ret[0] == conflictLit);
+    trace(sp, 25, "Reason: " << ret);
 //    if(solver.level(var(conflictLit)) == solver.decisionLevel()) return;
 //    for(int i = 1; i < ret.size(); i++) {
 //        if(solver.level(var(ret[i])) != solver.decisionLevel()) continue;

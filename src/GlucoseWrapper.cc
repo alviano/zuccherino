@@ -163,6 +163,13 @@ void GlucoseWrapper::uncheckedEnqueueFromPropagator(vec<Lit>& lits, Propagator* 
     nTrailPosition += lits.size();
 }
 
+bool GlucoseWrapper::activatePropagators() {
+    assert(decisionLevel() == 0);
+    while(nTrailPosition < nAssigns()) { trailPosition[var(assigned(nTrailPosition))] = nTrailPosition; nTrailPosition++; }
+    for(int i = 0; i < propagators.size(); i++) if(!propagators[i]->activate()) return false;
+    return true;
+}
+
 bool GlucoseWrapper::simplifyPropagators() {
     assert(decisionLevel() == 0);
     while(nTrailPosition < nAssigns()) { trailPosition[var(assigned(nTrailPosition))] = nTrailPosition; nTrailPosition++; }

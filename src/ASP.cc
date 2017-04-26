@@ -42,11 +42,75 @@ Lit ASP::parseLit(Glucose::StreamBuffer& in) {
     return (parsed_lit > 0) ? mkLit(var) : ~mkLit(var);
 }
 
+void ASP::addWeakLit(Lit lit, int64_t weight, int level) {
+    assert(weight >= 0);
+    assert(level >= 0);
+    if(lit != lit_Undef) {
+        assert(!data.has(lit) && !data.has(~lit));
+    
+        data.push(*this, lit);
+        this->weight(lit) = weight;
+        this->level(lit) = level;
+        softLits.push(lit);
+    }
+    
+    Level l;
+    l.level = level;
+    l.lowerBound = lit != lit_Undef ? 0 : weight;
+    l.upperBound = INT64_MAX;
+    int i = 0;
+    for(; i < levels.size(); i++) {
+        if(levels[i].level == l.level) { levels[i].lowerBound += l.lowerBound; break; }
+        if(levels[i].level > l.level) {
+            Level tmp = levels[i];
+            levels[i] = l;
+            l = tmp;
+        }
+    }
+    if(i == levels.size()) levels.push(l);
+    
+    optimization = true;
+}
+
+void ASP::addVisible(Lit lit, const char* str, int len) {
+    assert(len >= 0);
+    assert(static_cast<int>(strlen(str)) <= len);
+    visible.push(lit);
+    char* value = new char[len+1];
+    strcpy(value, str);
+    visibleValue.push(value);
+}
+
+void ASP::addSP(Var atom, Lit body, vec<Var>& rec) {
+    if(spPropagator == NULL) spPropagator = new SourcePointers(*this);
+    spPropagator->add(atom, body, rec);
+}
+
+void ASP::endProgram(int numberOfVariables) {
+    while(nVars() < numberOfVariables) { newVar(); if(option_n != 1) setFrozen(nVars()-1, true); }
+    
+    if(levels.size() == 0) {
+        levels.push();
+        levels.last().level = 0;
+        levels.last().lowerBound = 0;
+        levels.last().upperBound = INT64_MAX;
+    }
+    for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
+    
+    if(option_n != 1) for(int i = 0; i < visible.size(); i++) setFrozen(var(visible[i]), true);
+
+    if(!simplify()) return;
+
+    if(!activatePropagators()) return;
+}
+
 void ASP::parse(gzFile in_) {
     Glucose::StreamBuffer in(in_);
 
     const unsigned BUFFSIZE = 1048576;
     char* buff = new char[BUFFSIZE];
+    
+    bool pasp = false;
     
     int64_t weight;
     vec<int64_t> weights;
@@ -64,6 +128,8 @@ void ASP::parse(gzFile in_) {
             
             if(eagerMatch(in, "asp")) skipLine(in);
             else cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
+            
+            pasp = true;
         }
         else if(*in == 'c') skipLine(in);
         else if(*in == 'w') {
@@ -73,31 +139,8 @@ void ASP::parse(gzFile in_) {
             int level = parseInt(in);
             if(weight < 0) cerr << "PARSE ERROR! Weights of soft literals must be positive: " << static_cast<char>(*in) << endl, exit(3);
             if(level < 0) cerr << "PARSE ERROR! Levels of soft literals must be nonnegative: " << static_cast<char>(*in) << endl, exit(3);
-            if(lit != lit_Undef) {
-                if(data.has(lit) || data.has(~lit)) cerr << "PARSE ERROR! Repeated soft literal: " << static_cast<char>(*in) << endl, exit(3);
-            
-                data.push(*this, lit);
-                this->weight(lit) = weight;
-                this->level(lit) = level;
-                softLits.push(lit);
-            }
-            
-            Level l;
-            l.level = level;
-            l.lowerBound = lit != lit_Undef ? 0 : weight;
-            l.upperBound = INT64_MAX;
-            int i = 0;
-            for(; i < levels.size(); i++) {
-                if(levels[i].level == l.level) { levels[i].lowerBound += l.lowerBound; break; }
-                if(levels[i].level > l.level) {
-                    Level tmp = levels[i];
-                    levels[i] = l;
-                    l = tmp;
-                }
-            }
-            if(i == levels.size()) levels.push(l);
-            
-            optimization = true;
+            if(lit != lit_Undef && (data.has(lit) || data.has(~lit))) cerr << "PARSE ERROR! Repeated soft literal: " << static_cast<char>(*in) << endl, exit(3);
+            addWeakLit(lit, weight, level);
         }
         else if(*in == 'v') {
             ++in;
@@ -109,10 +152,7 @@ void ASP::parse(gzFile in_) {
             if(static_cast<unsigned>(count) >= BUFFSIZE) cerr << "PARSE ERROR! Value of visible literal " << lit << " is too long!" << endl, exit(3);
             buff[count] = '\0';
             
-            visible.push(lit);
-            char* value = new char[count+1];
-            strcpy(value, buff);
-            visibleValue.push(value);
+            addVisible(lit, buff, count);
         }
         else if(*in == '>') {
             ++in;
@@ -122,7 +162,7 @@ void ASP::parse(gzFile in_) {
             Glucose::readClause(in, *this, lits);
             for(int i = 0; i < lits.size(); i++) weights.push(parseLong(in));
             weight = parseLong(in);
-            if(!wcPropagator.addGreaterEqual(lits, weights, weight)) return;
+            if(!addGreaterEqual(lits, weights, weight)) return;
         }
         else if(*in == 's') {
             ++in;
@@ -131,33 +171,20 @@ void ASP::parse(gzFile in_) {
             if(lits.size() < 2) cerr << "PARSE ERROR! Expected two or more literals: " << static_cast<char>(*in) << endl, exit(3);
             for(int i = 2; i < lits.size(); i++) rec.push(var(lits[i]));
             
-            if(spPropagator == NULL) spPropagator = new SourcePointers(*this);
-            spPropagator->add(var(lits[0]), lits[1], rec);
+            addSP(var(lits[0]), lits[1], rec);
         }
         else if(*in == 'n') {
             ++in;
             int n = parseInt(in);
-            while(nVars() < n) { newVar(); if(option_n != 1) setFrozen(nVars()-1, true); }
+            endProgram(n);
         }
         else {
             Glucose::readClause(in, *this, lits);
-            if(!addClause_(lits)) return;
+            if(!addClause_(lits)) break;
         }
     }
     
-    if(levels.size() == 0) {
-        levels.push();
-        levels.last().level = 0;
-        levels.last().lowerBound = 0;
-        levels.last().upperBound = INT64_MAX;
-    }
-    for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
-    
-    if(option_n != 1) for(int i = 0; i < visible.size(); i++) setFrozen(var(visible[i]), true);
-
-    if(!simplify()) return;
-
-    if(spPropagator != NULL && !spPropagator->activate()) return;
+    if(!pasp) cerr << "PARSE ERROR! Invalid input: must start with 'p asp'" << endl, exit(3);
 }
 
 void ASP::printModel() const {

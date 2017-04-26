@@ -37,6 +37,8 @@ public:
     AxiomsPropagator(GlucoseWrapper& solver, bool notifyOnCancel = false);
     virtual ~AxiomsPropagator();
     
+    virtual bool activate() { return true; }
+    
     virtual void onCancel();
     virtual bool simplify();
     virtual bool propagate();

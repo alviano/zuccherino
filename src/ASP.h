@@ -29,6 +29,12 @@ public:
     ASP();
     ~ASP();
     
+    void addWeakLit(Lit lit, int64_t weight, int level);
+    void addVisible(Lit lit, const char* str, int len);
+    inline bool addGreaterEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t weight) { return wcPropagator.addGreaterEqual(lits, weights, weight); }
+    void addSP(Var atom, Lit body, vec<Var>& rec);
+    void endProgram(int numberOfVariables);
+    
     void parse(gzFile in);
     
     void printModel() const;

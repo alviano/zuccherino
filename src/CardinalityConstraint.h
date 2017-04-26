@@ -43,12 +43,16 @@ class CardinalityConstraintPropagator: public AxiomsPropagator<CardinalityConstr
 public:
     inline CardinalityConstraintPropagator(GlucoseWrapper& solver) : AxiomsPropagator(solver, true) {}
 
-    bool addGreaterEqual(vec<Lit>& lits, int bound);
+    virtual bool addGreaterEqual(vec<Lit>& lits, int bound);
     bool addLessEqual(vec<Lit>& lits, int bound);
     bool addEqual(vec<Lit>& lits, int bound);
     inline bool addGreater(vec<Lit>& lits, int bound) { return addGreaterEqual(lits, bound + 1); }
     inline bool addLess(vec<Lit>& lits, int bound) { return addLessEqual(lits, bound - 1); }
 
+protected:
+    lbool preprocessGreaterEqual(vec<Lit>& lits, int& bound);
+    static inline CardinalityConstraint* createCardinalityConstraint(vec<Lit>& lits, int bound) { return new CardinalityConstraint(lits, bound); }
+    
 private:
     void notifyFor(CardinalityConstraint& cc, vec<Lit>& lits);
     bool onSimplify(Lit lit, int observedIndex);
@@ -58,7 +62,18 @@ private:
     void getReason_(Lit lit, int index, CardinalityConstraint& cc, vec<Lit>& ret);
     void getConflictReason(Lit lit, CardinalityConstraint& cc, vec<Lit>& ret);
     
+    
     static void sort(vec<Lit>& lits);
+};
+
+// stub for future tests
+class CardinalityConstraintPropagatorWithCompiler : public CardinalityConstraintPropagator {
+    inline CardinalityConstraintPropagatorWithCompiler(GlucoseWrapper& solver) : CardinalityConstraintPropagator(solver) {}
+public:
+    virtual bool activate();
+    virtual bool addGreaterEqual(vec<Lit>& lits, int bound);
+private:
+    vec< vec<Lit> > atMostOne;
 };
 
 }
