@@ -143,7 +143,6 @@ K(opt_K)
 , random_seed(opt_random_seed)
 , ccmin_mode(opt_ccmin_mode)
 , phase_saving(opt_phase_saving)
-, rnd_pol(false)
 , rnd_init_act(opt_rnd_init_act)
 , randomizeFirstDescent(false)
 , garbage_frac(opt_garbage_frac)
@@ -225,7 +224,6 @@ K(s.K)
 , random_seed(s.random_seed)
 , ccmin_mode(s.ccmin_mode)
 , phase_saving(s.phase_saving)
-, rnd_pol(s.rnd_pol)
 , rnd_init_act(s.rnd_init_act)
 , randomizeFirstDescent(s.randomizeFirstDescent)
 , garbage_frac(s.garbage_frac)
@@ -707,7 +705,7 @@ Lit Solver::pickBranchLit() {
 
     }
 
-    return next == var_Undef ? lit_Undef : mkLit(next, rnd_pol ? drand(random_seed) < 0.5 : polarity[next]);
+    return next == var_Undef ? lit_Undef : mkLit(next, polarity[next]);
 }
 
 
@@ -1325,7 +1323,7 @@ bool Solver::simplify() {
 void Solver::adaptSolver() {
     bool adjusted = false;
     bool reinit = false;
-    printf("c\nc Try to adapt solver strategies\nc \n");
+//    printf("c\nc Try to adapt solver strategies\nc \n");
     /*  printf("c Adjusting solver for the SAT Race 2015 (alpha feature)\n");
     printf("c key successive Conflicts       : %" PRIu64"\n",stats[noDecisionConflict]);
     printf("c nb unary clauses learnt        : %" PRIu64"\n",stats[nbUn]);
@@ -1336,7 +1334,7 @@ void Solver::adaptSolver() {
         coLBDBound = 4;
         glureduce = true;
         adjusted = true;
-        printf("c Adjusting for low decision levels.\n");
+//        printf("c Adjusting for low decision levels.\n");
         reinit = true;
         firstReduceDB = 2000;
         nbclausesbeforereduce = firstReduceDB;
@@ -1353,7 +1351,7 @@ void Solver::adaptSolver() {
         printf("c Adjusting for low successive conflicts.\n");
     }
     if(stats[noDecisionConflict] > 54400) {
-        printf("c Adjusting for high successive conflicts.\n");
+//        printf("c Adjusting for high successive conflicts.\n");
         chanseokStrategy = true;
         glureduce = true;
         coLBDBound = 3;
@@ -1367,12 +1365,12 @@ void Solver::adaptSolver() {
         var_decay = 0.91;
         max_var_decay = 0.91;
         adjusted = true;
-        printf("c Adjusting for a very large number of true glue clauses found.\n");
+//        printf("c Adjusting for a very large number of true glue clauses found.\n");
     }
-    if(!adjusted) {
-        printf("c Nothing extreme in this problem, continue with glucose default strategies.\n");
-    }
-    printf("c\n");
+//    if(!adjusted) {
+//        printf("c Nothing extreme in this problem, continue with glucose default strategies.\n");
+//    }
+//    printf("c\n");
     if(adjusted) { // Let's reinitialize the glucose restart strategy counters
         lbdQueue.fastclear();
         sumLBD = 0;
@@ -1393,7 +1391,7 @@ void Solver::adaptSolver() {
             }
         }
         learnts.shrink(i - j);
-        printf("c Activating Chanseok Strategy: moved %d clauses to the permanent set.\n", moved);
+//        printf("c Activating Chanseok Strategy: moved %d clauses to the permanent set.\n", moved);
     }
 
     if(reinit) {
@@ -1412,7 +1410,7 @@ void Solver::adaptSolver() {
 	}
 	printf("c reinitialization of all variables activity/phase/learnt clauses.\n");
 */
-        printf("c Removing of non permanent clauses.\n");
+//        printf("c Removing of non permanent clauses.\n");
     }
 
 }

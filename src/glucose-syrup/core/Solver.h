@@ -218,7 +218,6 @@ public:
     double    random_seed;
     int       ccmin_mode;         // Controls conflict clause minimization (0=none, 1=basic, 2=deep).
     int       phase_saving;       // Controls the level of phase saving (0=none, 1=limited, 2=full).
-    bool      rnd_pol;            // Use random polarities for branching heuristics.
     bool      rnd_init_act;       // Initialize variable activities with a small random value.
     bool      randomizeFirstDescent; // the first decisions (until first cnflict) are made randomly
                                      // Useful for syrup!
