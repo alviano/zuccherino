@@ -64,9 +64,9 @@ static: $(BINARIES)
 	    strip $$bin-static; \
     done
 
-lib: $(BUILD_DIR)/aspino.a
+lib: $(BUILD_DIR)/zuccherino.a
 
-$(BUILD_DIR)/aspino.a: $(OBJS)
+$(BUILD_DIR)/zuccherino.a: $(OBJS)
 	ar rcs $@ $(OBJS)
 
 ########## Tests
