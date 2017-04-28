@@ -204,7 +204,7 @@ void ASP::printModel() const {
     }
     else {
         cout << "ANSWER" << endl;
-        for(int i = 0; i < visible.size(); i++) if(sign(visible[i]) ^ (model[var(visible[i])] == l_True)) cout << visibleValue[i] << " ";
+        for(int i = 0; i < visible.size(); i++) if(sign(visible[i]) ^ (model[var(visible[i])] == l_True)) cout << visibleValue[i] << ". ";
         cout << endl;
     }
     if(isOptimizationProblem()) {
