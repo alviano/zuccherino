@@ -25,7 +25,7 @@ SOURCE_DIR = src
 BUILD_DIR = build/$(BUILD)
 
 GCC = g++
-CXX = $(GCC)
+CXX = $(GCC) -std=c++11
 CXXFLAGS = $(cxxflags.$(BUILD)) -DINCREMENTAL -Isrc/glucose-syrup -Wall -Wextra
 LINK = $(GCC)
 LINKFLAGS = $(linkflags.$(BUILD))
