@@ -34,6 +34,14 @@ ASP::~ASP() {
     if(spPropagator != NULL) delete spPropagator;
 }
 
+lbool ASP::interrupt() {
+    GlucoseWrapper::interrupt();
+    if(model.size() == 0) return l_False;
+    printModel();
+    return l_True;
+}
+
+
 Lit ASP::parseLit(Glucose::StreamBuffer& in) {
     int parsed_lit = parseInt(in);
     if(parsed_lit == 0) return lit_Undef;
@@ -139,7 +147,7 @@ void ASP::parse(gzFile in_) {
             int level = parseInt(in);
             if(weight < 0) cerr << "PARSE ERROR! Weights of soft literals must be positive: " << static_cast<char>(*in) << endl, exit(3);
             if(level < 0) cerr << "PARSE ERROR! Levels of soft literals must be nonnegative: " << static_cast<char>(*in) << endl, exit(3);
-            if(lit != lit_Undef && (data.has(lit) || data.has(~lit))) cerr << "PARSE ERROR! Repeated soft literal: " << static_cast<char>(*in) << endl, exit(3);
+            if(lit != lit_Undef && (data.has(lit) || data.has(~lit))) cerr << "PARSE ERROR! Repeated soft literal: " << lit << endl, exit(3);
             addWeakLit(lit, weight, level);
         }
         else if(*in == 'v') {
@@ -210,6 +218,7 @@ void ASP::printModel() const {
     if(isOptimizationProblem()) {
         cout << "COST";
         for(int i = 0; i < solved.size(); i++) cout << " " << solved[i].lowerBound << "@" << solved[i].level;
+        for(int i = levels.size()-1; i >= 0; i--) cout << " " << levels[i].lowerBound << "@" << levels[i].level;
         cout << endl;
         if(levels.size() == 0) cout << "OPTIMUM" << endl;
     }
@@ -226,6 +235,7 @@ lbool ASP::solve() {
             setAssumptions(limit);
             if(levels.last().lowerBound == levels.last().upperBound) break;
             status = solveWithBudget();
+            if(status == l_Undef) return l_Undef;
             if(status == l_True) { 
                 updateUpperBound();
                 limit = computeNextLimit(limit);

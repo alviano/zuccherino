@@ -29,6 +29,8 @@ public:
     ASP();
     ~ASP();
     
+    lbool interrupt();
+    
     void addWeakLit(Lit lit, int64_t weight, int level);
     void addVisible(Lit lit, const char* str, int len);
     inline bool addGreaterEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t weight) { return wcPropagator.addGreaterEqual(lits, weights, weight); }
@@ -41,6 +43,7 @@ public:
     lbool solve();
     
     inline bool isOptimizationProblem() const { return optimization; }
+    inline bool optimumFound() const { return levels.size() == 0; }
     
 private:
     CardinalityConstraintPropagator ccPropagator;

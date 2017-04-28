@@ -21,9 +21,10 @@
 
 static zuccherino::ASP* solver = NULL;
 void SIGINT_interrupt(int) { 
-    solver->interrupt();
+    lbool ret = solver->interrupt();
     sleep(1);
-    exit(0);
+    int code = ret == l_True ? 10 : ret == l_False ? 20 : 1;
+    exit(code);
 }
 
 int main(int argc, char** argv) {
