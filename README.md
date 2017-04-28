@@ -10,7 +10,9 @@ Build
 Just run one of the following commands:
 
 $ make
+
 $ make static
+
 $ make lib
 
 
