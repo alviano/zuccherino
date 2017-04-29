@@ -34,11 +34,11 @@ ASP::~ASP() {
     if(spPropagator != NULL) delete spPropagator;
 }
 
-lbool ASP::interrupt() {
+bool ASP::interrupt() {
     GlucoseWrapper::interrupt();
-    if(model.size() == 0) return l_False;
+    if(model.size() == 0) return false;
     printModel();
-    return l_True;
+    return true;
 }
 
 

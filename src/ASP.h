@@ -29,7 +29,7 @@ public:
     ASP();
     ~ASP();
     
-    lbool interrupt();
+    bool interrupt();
     
     void addWeakLit(Lit lit, int64_t weight, int level);
     void addVisible(Lit lit, const char* str, int len);
