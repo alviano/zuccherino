@@ -90,7 +90,7 @@ bool WeightConstraintPropagator::addGreaterEqual(vec<Lit>& lits_, vec<int64_t>& 
         int64_t d = weights[0];
         for(int i = 1; i < weights.size(); i++) d = gcd(d, weights[i]);
         assert(d >= 1);
-        for(int i = 1; i < weights.size(); i++) weights[i] /= d;
+        for(int i = 0; i < weights.size(); i++) weights[i] /= d;
         bound = bound / d + (bound % d > 0 ? 1 : 0);
         
         sortByWeight(lits, weights);
