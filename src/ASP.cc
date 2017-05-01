@@ -218,7 +218,7 @@ void ASP::printModel() const {
     if(isOptimizationProblem()) {
         cout << "COST";
         for(int i = 0; i < solved.size(); i++) cout << " " << solved[i].lowerBound << "@" << solved[i].level;
-        for(int i = levels.size()-1; i >= 0; i--) cout << " " << levels[i].lowerBound << "@" << levels[i].level;
+        for(int i = levels.size()-1; i >= 0; i--) cout << " " << levels[i].upperBound << "@" << levels[i].level;
         cout << endl;
         if(levels.size() == 0) cout << "OPTIMUM" << endl;
     }
