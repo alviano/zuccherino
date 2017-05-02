@@ -1348,7 +1348,7 @@ void Solver::adaptSolver() {
         var_decay = 0.999;
         max_var_decay = 0.999;
         adjusted = true;
-        printf("c Adjusting for low successive conflicts.\n");
+//        printf("c Adjusting for low successive conflicts.\n");
     }
     if(stats[noDecisionConflict] > 54400) {
 //        printf("c Adjusting for high successive conflicts.\n");
