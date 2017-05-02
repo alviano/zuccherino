@@ -225,7 +225,18 @@ void ASP::printModel() const {
 }
 
 lbool ASP::solve() {
+    assert(decisionLevel() == 0);
+    assert(assumptions.size() == 0);
     if(!ok) return l_False;
+
+    if(isOptimizationProblem()) {
+        if(solveWithBudget() == l_True) updateUpperBound();
+        cancelUntil(0);
+        softLits.copyTo(assumptions);
+        if(solveWithBudget() == l_True) updateUpperBound();
+        cancelUntil(0);
+    }
+    
     do{
         assert(levels.size() > 0);
         lbool status;
