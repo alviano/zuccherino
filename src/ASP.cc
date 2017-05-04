@@ -41,15 +41,6 @@ bool ASP::interrupt() {
     return true;
 }
 
-
-Lit ASP::parseLit(Glucose::StreamBuffer& in) {
-    int parsed_lit = parseInt(in);
-    if(parsed_lit == 0) return lit_Undef;
-    Var var = abs(parsed_lit)-1;
-    while (var >= nVars()) newVar();
-    return (parsed_lit > 0) ? mkLit(var) : ~mkLit(var);
-}
-
 void ASP::addWeakLit(Lit lit, int64_t weight, int level) {
     assert(weight >= 0);
     assert(level >= 0);
@@ -94,6 +85,13 @@ void ASP::addSP(Var atom, Lit body, vec<Var>& rec) {
     spPropagator->add(atom, body, rec);
 }
 
+void ASP::addHCC(int hccId, vec<Var>& recHead, Lit body, vec<Var>& recBody) {
+    while(hccId >= hccs.size()) hccs.push(new HCC(*this, hccs.size()));
+    assert(hccId < hccs.size());
+    assert(hccs[hccId] != NULL);
+    hccs[hccId]->add(recHead, body, recBody);
+}
+
 void ASP::endProgram(int numberOfVariables) {
     while(nVars() < numberOfVariables) { newVar(); if(option_n != 1) setFrozen(nVars()-1, true); }
     
@@ -125,6 +123,7 @@ void ASP::parse(gzFile in_) {
     
     vec<Lit> lits;
     vec<Var> rec;
+    vec<Var> rec2;
     
     for(;;) {
         skipWhitespace(in);
@@ -142,7 +141,7 @@ void ASP::parse(gzFile in_) {
         else if(*in == 'c') skipLine(in);
         else if(*in == 'w') {
             ++in;
-            Lit lit = parseLit(in);
+            Lit lit = parseLit(in, *this);
             weight = parseLong(in);
             int level = parseInt(in);
             if(weight < 0) cerr << "PARSE ERROR! Weights of soft literals must be positive: " << static_cast<char>(*in) << endl, exit(3);
@@ -152,7 +151,7 @@ void ASP::parse(gzFile in_) {
         }
         else if(*in == 'v') {
             ++in;
-            Lit lit = parseLit(in);
+            Lit lit = parseLit(in, *this);
             
             ++in;
             int count = 0;
@@ -180,6 +179,23 @@ void ASP::parse(gzFile in_) {
             for(int i = 2; i < lits.size(); i++) rec.push(var(lits[i]));
             
             addSP(var(lits[0]), lits[1], rec);
+        }
+        else if(*in == 'h') {
+            ++in;
+            
+            int id = parseInt(in);
+            if(id < 0) cerr << "PARSE ERROR! Id of HCC must be nonnegative: " << static_cast<char>(*in) << endl, exit(3);
+            
+            Glucose::readClause(in, *this, lits);
+            if(lits.size() == 0) cerr << "PARSE ERROR! Expected one or more head atoms: " << static_cast<char>(*in) << endl, exit(3);
+            for(int i = 0; i < lits.size(); i++) rec.push(var(lits[i]));
+            
+            Lit body = parseLit(in, *this);
+            
+            Glucose::readClause(in, *this, lits);
+            for(int i = 0; i < lits.size(); i++) rec2.push(var(lits[i]));
+
+            addHCC(id, rec, body, rec2);
         }
         else if(*in == 'n') {
             ++in;

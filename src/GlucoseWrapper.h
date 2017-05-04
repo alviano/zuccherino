@@ -31,7 +31,6 @@ public:
     void parse(gzFile in);
     
     virtual Var newVar(bool polarity = true, bool dvar = true);
-    virtual void onNewDecisionLevel(Lit lit);
     
     void uncheckedEnqueueFromPropagator(Lit lit, Propagator* propagator);
     void uncheckedEnqueueFromPropagator(vec<Lit>& lits, Propagator* propagator);
@@ -61,6 +60,8 @@ public:
     inline void add(Propagator* ph) { assert(ph != NULL); propagators.push(ph); }
     bool activatePropagators();
     
+    inline void setId(const string& value) { id = value; }
+    
 protected:
     vec<int> trailPosition;
     int nTrailPosition;
@@ -69,6 +70,8 @@ private:
     vec<Propagator*> propagators;
     vec<Lit> conflictFromPropagators;
     vec<Propagator*> reasonFromPropagators;
+    
+    string id;
 };
 
 } // zuccherino

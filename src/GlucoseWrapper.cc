@@ -50,10 +50,6 @@ Var GlucoseWrapper::newVar(bool polarity, bool dvar) {
     return Glucose::SimpSolver::newVar(polarity, dvar);
 }
 
-void GlucoseWrapper::onNewDecisionLevel(Lit lit) {
-    reasonFromPropagators[var(lit)] = NULL;
-}
-
 lbool GlucoseWrapper::solve() {
     cancelUntil(0);
 
@@ -117,7 +113,7 @@ void GlucoseWrapper::learnClauseFromModel() {
         assert(reason(var(lit)) == CRef_Undef);
         lits.push(~lit);
     }
-    trace(solver, 10, "Blocking clause: " << lits);
+    trace(solver, 10, (id != "" ? "[" + id + "]": "") << "Blocking clause: " << lits);
     if(lits.size() == 0) { ok = false; return; }
     
     cancelUntil(decisionLevel()-1);
@@ -133,7 +129,7 @@ void GlucoseWrapper::learnClauseFromModel() {
 
 void GlucoseWrapper::cancelUntil(int level) {
     if(decisionLevel() <= level) return;
-    trace(solver, 5, "Cancel until " << level);
+    trace(solver, 5, (id != "" ? "[" + id + "] ": "") << "Cancel until " << level);
     Glucose::SimpSolver::cancelUntil(level);
     for(int i = 0; i < propagators.size(); i++) propagators[i]->onCancel();
     while(nTrailPosition > nAssigns()) trailPosition[var(assigned(--nTrailPosition))] = INT_MAX;

@@ -19,6 +19,7 @@
 #define zuccherino_asp_h
 
 #include "Data.h"
+#include "HCC.h"
 #include "SourcePointers.h"
 #include "WeightConstraint.h"
 
@@ -35,6 +36,7 @@ public:
     void addVisible(Lit lit, const char* str, int len);
     inline bool addGreaterEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t weight) { return wcPropagator.addGreaterEqual(lits, weights, weight); }
     void addSP(Var atom, Lit body, vec<Var>& rec);
+    void addHCC(int hccId, vec<Var>& recHead, Lit body, vec<Var>& recBody);
     void endProgram(int numberOfVariables);
     
     void parse(gzFile in);
@@ -49,6 +51,7 @@ private:
     CardinalityConstraintPropagator ccPropagator;
     WeightConstraintPropagator wcPropagator;
     SourcePointers* spPropagator;
+    vec<HCC*> hccs;
     
     struct LitData : LitDataBase {
         int64_t weight;
@@ -74,9 +77,6 @@ private:
     vec<char*> visibleValue;
     
     int optimization:1;
-    
-    Lit parseLit(Glucose::StreamBuffer& in);
-    
     
     void addToLowerBound(int64_t value);
     void updateUpperBound();

@@ -31,7 +31,19 @@ int64_t parseLong(B& in) {
     while (*in >= '0' && *in <= '9')
         val = val*10 + (*in - '0'),
         ++in;
-    return neg ? -val : val; }
+    return neg ? -val : val;
+}
+
+
+template<class B, class Solver>
+static Glucose::Lit parseLit(B& in, Solver& S) {
+    int parsed_lit, var;
+    parsed_lit = parseInt(in);
+    if(parsed_lit == 0) return Glucose::lit_Undef;
+    var = abs(parsed_lit)-1;
+    while(var >= S.nVars()) S.newVar();
+    return (parsed_lit > 0) ? Glucose::mkLit(var) : ~Glucose::mkLit(var);
+}
 
 }
 

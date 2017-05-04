@@ -34,6 +34,7 @@ class Data {
 public:
     inline int vars() const { return varData.size(); }
     inline bool has(Var v) const { return v < varIndex.size() && varIndex[v] != UINT_MAX; }
+    inline int index(Var v) const { assert(has(v)); return varIndex[v]; }
     inline VarData& get(Var v) { assert(has(v)); return varData[varIndex[v]]; }
     inline const VarData& get(Var v) const { assert(has(v)); return varData[varIndex[v]]; }
     inline VarData& operator()(Var v) { return this->get(v); }
@@ -43,6 +44,7 @@ public:
 
     inline int lits() const { return litData.size(); }
     inline bool has(Lit l) const { return Glucose::var(l) < litIndex[sign(l)].size() && litIndex[sign(l)][Glucose::var(l)] != UINT_MAX; }
+    inline int index(Lit l) const { assert(has(l)); return litIndex[sign(l)][Glucose::var(l)]; }
     inline LitData& get(Lit l) { assert(has(l)); return litData[litIndex[sign(l)][Glucose::var(l)]]; }
     inline const LitData& get(Lit l) const { assert(has(l)); return litData[litIndex[sign(l)][Glucose::var(l)]]; }
     inline LitData& operator()(Lit l) { return this->get(l); }
