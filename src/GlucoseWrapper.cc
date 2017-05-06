@@ -50,6 +50,10 @@ Var GlucoseWrapper::newVar(bool polarity, bool dvar) {
     return Glucose::SimpSolver::newVar(polarity, dvar);
 }
 
+void GlucoseWrapper::onNewDecisionLevel(Lit lit) {
+    reasonFromPropagators[var(lit)] = NULL;
+}
+
 lbool GlucoseWrapper::solve() {
     cancelUntil(0);
 

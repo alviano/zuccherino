@@ -105,7 +105,7 @@ bool WeightConstraintPropagator::addGreaterEqual(vec<Lit>& lits_, vec<int64_t>& 
     for(int i = 0; i < lits.size(); i++) {
         Lit l = lits[i];
         assert(solver.value(l) == l_Undef);
-        if(weights[i] < s) break;
+        if(s - weights[i] >= bound) break;
         trace(wc, 15, "Infer " << l);
         if(!solver.addClause(l)) return false;
     }

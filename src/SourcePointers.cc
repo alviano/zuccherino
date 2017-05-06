@@ -166,6 +166,7 @@ void SourcePointers::resetFlagged2() {
 }
 
 bool SourcePointers::addToSpLost(Var v) {
+    trace(sp, 50, "Check " << mkLit(v) << ": value=" << solver.value(v) << "; flag=" << flag(v));
     if(solver.value(v) == l_False || flag(v)) return false;
     trace(sp, 20, "Unset sp of " << mkLit(v));
     flag(v, true);

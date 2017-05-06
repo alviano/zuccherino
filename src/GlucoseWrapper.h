@@ -31,7 +31,8 @@ public:
     void parse(gzFile in);
     
     virtual Var newVar(bool polarity = true, bool dvar = true);
-    
+    virtual void onNewDecisionLevel(Lit lit);
+     
     void uncheckedEnqueueFromPropagator(Lit lit, Propagator* propagator);
     void uncheckedEnqueueFromPropagator(vec<Lit>& lits, Propagator* propagator);
     
