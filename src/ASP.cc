@@ -213,11 +213,11 @@ void ASP::parse(gzFile in_) {
 
 void ASP::printModel() const {
     if(!option_print_model) return;
-    assert(model.size() >= nVars());
     if(option_asp_dlv_output) {
         cout << "{";
         bool first = true;
         for(int i = 0; i < visible.size(); i++) {
+            assert(var(visible[i]) < model.size());
             if(sign(visible[i]) ^ (model[var(visible[i])] == l_True)) {
                 if(first) first = false;
                 else cout << ", ";
@@ -228,7 +228,10 @@ void ASP::printModel() const {
     }
     else {
         cout << "ANSWER" << endl;
-        for(int i = 0; i < visible.size(); i++) if(sign(visible[i]) ^ (model[var(visible[i])] == l_True)) cout << visibleValue[i] << ". ";
+        for(int i = 0; i < visible.size(); i++) {
+            assert(var(visible[i]) < model.size());
+            if(sign(visible[i]) ^ (model[var(visible[i])] == l_True)) cout << visibleValue[i] << ". ";
+        }
         cout << endl;
     }
     if(isOptimizationProblem()) {
