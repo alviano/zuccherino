@@ -73,6 +73,8 @@ private:
     vec<Propagator*> reasonFromPropagators;
     
     string id;
+    
+    void updateTrailPositions();
 };
 
 } // zuccherino
