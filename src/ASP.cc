@@ -32,6 +32,7 @@ ASP::ASP() : ccPropagator(*this), wcPropagator(*this, &ccPropagator), spPropagat
 ASP::~ASP() {
     for(int i = 0; i < visible.size(); i++) delete[] visible[i].value;
     if(spPropagator != NULL) delete spPropagator;
+    for(int i = 0; i < hccs.size(); i++) delete hccs[i];
 }
 
 bool ASP::interrupt() {
