@@ -35,6 +35,7 @@ public:
     void addWeakLit(Lit lit, int64_t weight, int level);
     void addVisible(Lit lit, const char* str, int len);
     inline bool addGreaterEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t weight) { return wcPropagator.addGreaterEqual(lits, weights, weight); }
+    inline bool addEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t weight) { return wcPropagator.addEqual(lits, weights, weight); }
     void addSP(Var atom, Lit body, vec<Var>& rec);
     void addHCC(int hccId, vec<Var>& recHead, Lit body, vec<Var>& recBody);
     void endProgram(int numberOfVariables);

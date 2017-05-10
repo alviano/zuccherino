@@ -171,6 +171,14 @@ void ASP::parse(gzFile in_) {
             weight = parseLong(in);
             if(!addGreaterEqual(lits, weights, weight)) return;
         }
+        else if(*in == '=') {
+            ++in;
+            
+            Glucose::readClause(in, *this, lits);
+            for(int i = 0; i < lits.size(); i++) weights.push(parseLong(in));
+            weight = parseLong(in);
+            if(!addEqual(lits, weights, weight)) return;
+        }
         else if(*in == 's') {
             ++in;
             
