@@ -74,8 +74,11 @@ private:
     vec<Level> levels;
     vec<Level> solved;
     
-    vec<Lit> visible;
-    vec<char*> visibleValue;
+    struct VisibleData {
+        Lit lit;
+        char* value;
+    };
+    vec<VisibleData> visible;
     
     int optimization:1;
     

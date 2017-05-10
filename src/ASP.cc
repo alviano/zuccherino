@@ -30,7 +30,7 @@ ASP::ASP() : ccPropagator(*this), wcPropagator(*this, &ccPropagator), spPropagat
 }
 
 ASP::~ASP() {
-    for(int i = 0; i < visibleValue.size(); i++) delete[] visibleValue[i];
+    for(int i = 0; i < visible.size(); i++) delete[] visible[i].value;
     if(spPropagator != NULL) delete spPropagator;
 }
 
@@ -74,10 +74,10 @@ void ASP::addWeakLit(Lit lit, int64_t weight, int level) {
 void ASP::addVisible(Lit lit, const char* str, int len) {
     assert(len >= 0);
     assert(static_cast<int>(strlen(str)) <= len);
-    visible.push(lit);
-    char* value = new char[len+1];
-    strcpy(value, str);
-    visibleValue.push(value);
+    visible.push();
+    visible.last().lit = lit;
+    visible.last().value = new char[len+1];
+    strcpy(visible.last().value, str);
 }
 
 void ASP::addSP(Var atom, Lit body, vec<Var>& rec) {
@@ -103,7 +103,7 @@ void ASP::endProgram(int numberOfVariables) {
     }
     for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
     
-    if(option_n != 1) for(int i = 0; i < visible.size(); i++) setFrozen(var(visible[i]), true);
+    if(option_n != 1) for(int i = 0; i < visible.size(); i++) setFrozen(var(visible[i].lit), true);
 
     if(!simplify()) return;
 
@@ -144,7 +144,7 @@ void ASP::parse(gzFile in_) {
             Lit lit = parseLit(in, *this);
             weight = parseLong(in);
             int level = parseInt(in);
-            if(weight < 0) cerr << "PARSE ERROR! Weights of soft literals must be positive: " << static_cast<char>(*in) << endl, exit(3);
+            if(weight < 0) cerr << "PARSE ERROR! Weights of soft literals must be nonnegative: " << static_cast<char>(*in) << endl, exit(3);
             if(level < 0) cerr << "PARSE ERROR! Levels of soft literals must be nonnegative: " << static_cast<char>(*in) << endl, exit(3);
             if(lit != lit_Undef && (data.has(lit) || data.has(~lit))) cerr << "PARSE ERROR! Repeated soft literal: " << lit << endl, exit(3);
             addWeakLit(lit, weight, level);
@@ -225,11 +225,11 @@ void ASP::printModel() const {
         cout << "{";
         bool first = true;
         for(int i = 0; i < visible.size(); i++) {
-            assert(var(visible[i]) < model.size());
-            if(sign(visible[i]) ^ (model[var(visible[i])] == l_True)) {
+            assert(var(visible[i].lit) < model.size());
+            if(sign(visible[i].lit) ^ (model[var(visible[i].lit)] == l_True)) {
                 if(first) first = false;
                 else cout << ", ";
-                cout << visibleValue[i];
+                cout << visible[i].value;
             }
         }
         cout << "}" << endl;
@@ -237,8 +237,8 @@ void ASP::printModel() const {
     else {
         cout << "ANSWER" << endl;
         for(int i = 0; i < visible.size(); i++) {
-            assert(var(visible[i]) < model.size());
-            if(sign(visible[i]) ^ (model[var(visible[i])] == l_True)) cout << visibleValue[i] << ". ";
+            assert(var(visible[i].lit) < model.size());
+            if(sign(visible[i].lit) ^ (model[var(visible[i].lit)] == l_True)) cout << visible[i].value << ". ";
         }
         cout << endl;
     }
