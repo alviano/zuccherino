@@ -36,6 +36,7 @@ extern Glucose::IntOption option_trace_sp;
 extern Glucose::IntOption option_trace_hcc;
 extern Glucose::IntOption option_trace_maxsat;
 extern Glucose::IntOption option_trace_asp;
+extern Glucose::IntOption option_trace_circ;
 
 #define trace(type, level, msg) \
     if(option_trace_##type >= level) {\

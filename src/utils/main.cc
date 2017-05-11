@@ -17,7 +17,7 @@
 
 #include "main.h"
 
-Glucose::IntOption option_n("MAIN", "n", "Number of desired solutions. Non-positive integers are interpreted as unbounded.\n", 1, Glucose::IntRange(0, INT32_MAX));
+Glucose::IntOption option_n("MAIN", "n", "Number of desired solutions. Non-positive integers are interpreted as unbounded.", 1, Glucose::IntRange(0, INT32_MAX));
 Glucose::BoolOption option_print_model("MAIN", "print-model", "Print model if found.", true);
 
 void premain() {
