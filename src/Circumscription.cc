@@ -250,7 +250,7 @@ lbool Circumscription::solve() {
     assert(assumptions.size() == 0);
     if(!ok) return l_False;
     
-    return solve1();
+    return solve2();
 }
 
 lbool Circumscription::solve1() {
@@ -299,45 +299,65 @@ lbool Circumscription::solve1() {
 }
 
 lbool Circumscription::solve2() {
-//    if(query == lit_Undef || (data.has(query) && soft(query))) {
-//        trace(circ, 10, "Disable checker");
-//        checker.addEmptyClause();
-//    }
-//    if(query != lit_Undef) addClause(query);
-//    
-//    int count = 0;
-//    lbool status;
-//    for(;;) {
-//        setAssumptions();
-//        status = solveWithBudget();
-//        if(status == l_Undef) return l_Undef;
-//        if(status == l_True) {
-//            status = check();
-//            if(status == l_Undef) return l_Undef;
-//            if(status == l_True) learnClauseFromCounterModel();
-//            else {
-//                assert(status == l_False);
-//                enumerateModels(count);
-//                if(count == option_n) break;
-//            }
-//        }
-//        else {
-//            assert(status == l_False);
-//            trace(circ, 2, "UNSAT! Conflict of size " << conflict.size());
-//            trace(circ, 100, "Conflict: " << conflict);
-//            
-//            if(conflict.size() == 0) break;
-//
-//            shrinkConflict();
-//            trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
-//
-//            assert(conflict.size() > 0);
-//            trace(circ, 4, "Analyze conflict of size " << conflict.size());
-//            processConflict();
-//        }
-//    }
-//
-//    return count > 0 ? l_True : l_False;
+    int count = 0;
+    bool cardmin = true;
+    lbool status;
+    for(;;) {
+        setAssumptions();
+        status = solveWithBudget();
+        if(status == l_Undef) return l_Undef;
+        if(status == l_True) {
+            if(checker == NULL) {
+                if(query != lit_Undef) {
+                    if((!data.has(query) || soft(query))) {
+                        trace(circ, 10, "Activate checker");
+                        assert(checker == NULL);
+                        checker = new Checker(*this);
+                    }
+                    if(value(query) == l_True) {
+                        trace(circ, 20, "Lucky models!");
+                        enumerateModels(count);
+                        if(count == option_n) break;
+                    }
+                    cancelUntil(0);
+                    addClause(query);
+                }
+                continue;
+            }
+            if(cardmin) {
+                trace(circ, 20, "Cardinality optimal models!");
+                enumerateModels(count);
+                if(count == option_n) break;
+                continue;
+            }
+            status = check();
+            if(status == l_Undef) return l_Undef;
+            if(status == l_True) learnClauseFromCounterModel();
+            else {
+                assert(status == l_False);
+                trace(circ, 20, "Checked models!");
+                enumerateModels(count);
+                if(count == option_n) break;
+            }
+        }
+        else {
+            assert(status == l_False);
+            trace(circ, 2, "UNSAT! Conflict of size " << conflict.size());
+            trace(circ, 100, "Conflict: " << conflict);
+            
+            if(conflict.size() == 0) break;
+
+            shrinkConflict();
+            trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
+
+            assert(conflict.size() > 0);
+            trace(circ, 4, "Analyze conflict of size " << conflict.size());
+            processConflict();
+            if(checker != NULL) cardmin = false;
+        }
+    }
+
+    return count > 0 ? l_True : l_False;
 }
 
 void Circumscription::setAssumptions() {
