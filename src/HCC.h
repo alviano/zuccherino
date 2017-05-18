@@ -26,7 +26,8 @@ namespace zuccherino {
 class HCC: public Propagator {
 public:
     HCC(GlucoseWrapper& solver, int id);
-
+    HCC(GlucoseWrapper& solver, const HCC& init);
+    
     virtual bool activate();
     
     virtual void onCancel();

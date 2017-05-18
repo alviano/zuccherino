@@ -30,6 +30,8 @@ public:
     struct LitData : LitDataAxiomsPropagator {
         vec<int> pos;
     };
+    
+    WeightConstraint(const WeightConstraint& init);
 
 private:    
     WeightConstraint(vec<Lit>& lits, vec<int64_t>& weights, int64_t bound);
@@ -44,7 +46,8 @@ class WeightConstraintPropagator: public AxiomsPropagator<WeightConstraint, Weig
     friend AxiomsPropagator;
 public:
     inline WeightConstraintPropagator(GlucoseWrapper& solver, CardinalityConstraintPropagator* ccPropagator_ = NULL) : AxiomsPropagator(solver, true), ccPropagator(ccPropagator_) {}
-
+    inline WeightConstraintPropagator(GlucoseWrapper& solver, const WeightConstraintPropagator& init, CardinalityConstraintPropagator* ccPropagator_ = NULL) : AxiomsPropagator(solver, init), ccPropagator(ccPropagator_) {}
+    
     bool addGreaterEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t bound);
     bool addLessEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t bound);
     bool addEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t bound);

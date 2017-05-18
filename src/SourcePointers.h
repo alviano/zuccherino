@@ -26,7 +26,8 @@ namespace zuccherino {
 class SourcePointers: public Propagator {
 public:
     inline SourcePointers(GlucoseWrapper& solver) : Propagator(solver), nextToPropagate(0) {}
-
+    SourcePointers(GlucoseWrapper& solver, const SourcePointers& init);
+    
     virtual bool activate();
     
     virtual void onCancel();
@@ -43,7 +44,7 @@ private:
     Lit conflictLit;
     
     struct SuppIndex {
-        inline SuppIndex(Var v, unsigned i) : var(v), index(i) {}
+        static inline SuppIndex create(Var v, unsigned i) { SuppIndex res; res.var = v; res.index = i; return res; }
         Var var;
         unsigned index;
     };

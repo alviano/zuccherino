@@ -29,21 +29,21 @@ namespace zuccherino {
 _Circumscription::_Circumscription() : ccPropagator(*this), wcPropagator(*this, &ccPropagator), spPropagator(NULL) {
 }
 
+_Circumscription::_Circumscription(const _Circumscription& init) : GlucoseWrapper(init), ccPropagator(*this, init.ccPropagator), wcPropagator(*this, init.wcPropagator, &ccPropagator), spPropagator(init.spPropagator != NULL ? new SourcePointers(*this, *init.spPropagator) : NULL) {
+    for(int i = 0; i < init.hccs.size(); i++) hccs.push(new HCC(*this, *init.hccs[i]));
+}
+
 _Circumscription::~_Circumscription() {
     if(spPropagator != NULL) delete spPropagator;
     for(int i = 0; i < hccs.size(); i++) delete hccs[i];
 }
 
-Circumscription::Circumscription() : _Circumscription(), query(lit_Undef) {
+Circumscription::Circumscription() : _Circumscription(), checker(NULL), query(lit_Undef) {
 }
 
 Circumscription::~Circumscription() {
     for(int i = 0; i < visible.size(); i++) delete[] visible[i].value;
-}
-
-Var Circumscription::newVar(bool polarity, bool dvar) {
-    checker.newVar(polarity, dvar);
-    return _Circumscription::newVar(polarity, dvar);
+    delete checker;
 }
 
 bool Circumscription::interrupt() {
@@ -87,49 +87,9 @@ void Circumscription::addVisible(Lit lit, const char* str, int len) {
     strcpy(visible.last().value, str);
 }
 
-bool Circumscription::addInputClause(vec<Lit>& lits) {
-    if(query != lit_Undef) {
-        vec<Lit> lits_;
-        lits.copyTo(lits_);
-        checker.addClause_(lits_);
-    }
-    return _Circumscription::addClause_(lits);
-}
-
-bool Circumscription::addGreaterEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t weight) {
-    if(query != lit_Undef) {
-        vec<Lit> lits_;
-        vec<int64_t> weights_;
-        lits.copyTo(lits_);
-        weights.copyTo(weights_);
-        checker.addGreaterEqual(lits_, weights_, weight);
-    }
-    return _Circumscription::addGreaterEqual(lits, weights, weight);
-}
-
-bool Circumscription::addEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t weight) {
-    if(query != lit_Undef) {
-        vec<Lit> lits_;
-        vec<int64_t> weights_;
-        lits.copyTo(lits_);
-        weights.copyTo(weights_);
-        checker.addEqual(lits_, weights_, weight);
-    }
-    return _Circumscription::addEqual(lits, weights, weight);
-}
-
 void _Circumscription::addSP(Var atom, Lit body, vec<Var>& rec) {
     if(spPropagator == NULL) spPropagator = new SourcePointers(*this);
     spPropagator->add(atom, body, rec);
-}
-
-void Circumscription::addSP(Var atom, Lit body, vec<Var>& rec) {
-    if(query != lit_Undef) {
-        vec<Var> rec_;
-        rec.copyTo(rec_);
-        checker.addSP(atom, body, rec_);
-    }
-    _Circumscription::addSP(atom, body, rec);
 }
 
 void _Circumscription::addHCC(int hccId, vec<Var>& recHead, Lit body, vec<Var>& recBody) {
@@ -137,17 +97,6 @@ void _Circumscription::addHCC(int hccId, vec<Var>& recHead, Lit body, vec<Var>& 
     assert(hccId < hccs.size());
     assert(hccs[hccId] != NULL);
     hccs[hccId]->add(recHead, body, recBody);
-}
-
-void Circumscription::addHCC(int hccId, vec<Var>& recHead, Lit body, vec<Var>& recBody) {
-    if(query != lit_Undef) {
-        vec<Var> recHead_;
-        vec<Var> recBody_;
-        recHead.copyTo(recHead_);
-        recBody.copyTo(recBody_);
-        checker.addHCC(hccId, recHead_, body, recBody_);
-    }
-    _Circumscription::addHCC(hccId, recHead, body, recBody);
 }
 
 void _Circumscription::endProgram(int numberOfVariables) {
@@ -159,14 +108,14 @@ void _Circumscription::endProgram(int numberOfVariables) {
 }
 
 void Circumscription::endProgram(int numberOfVariables) {
-    if(query != lit_Undef) {
-        setFrozen(var(query), true);
-        checker.setFrozen(var(query), true);
-        for(int i = 0; i < groupLits.size(); i++) checker.setFrozen(var(groupLits[i]), true);
-        for(int i = 0; i < softLits.size(); i++) checker.setFrozen(var(softLits[i]), true);
-        if(option_n != 1) for(int i = 0; i < visible.size(); i++) checker.setFrozen(var(visible[i].lit), true);
-        checker.endProgram(numberOfVariables);
-    }
+//    if(query != lit_Undef) {
+//        setFrozen(var(query), true);
+//        checker.setFrozen(var(query), true);
+//        for(int i = 0; i < groupLits.size(); i++) checker.setFrozen(var(groupLits[i]), true);
+//        for(int i = 0; i < softLits.size(); i++) checker.setFrozen(var(softLits[i]), true);
+//        if(option_n != 1) for(int i = 0; i < visible.size(); i++) checker.setFrozen(var(visible[i].lit), true);
+//        checker.endProgram(numberOfVariables);
+//    }
     for(int i = 0; i < groupLits.size(); i++) setFrozen(var(groupLits[i]), true);
     for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
     if(option_n != 1) for(int i = 0; i < visible.size(); i++) setFrozen(var(visible[i].lit), true);
@@ -279,7 +228,7 @@ void Circumscription::parse(gzFile in_) {
         }
         else {
             Glucose::readClause(in, *this, lits);
-            if(!addInputClause(lits)) break;
+            if(!addClause_(lits)) break;
         }
     }
     
@@ -300,12 +249,19 @@ lbool Circumscription::solve() {
     assert(decisionLevel() == 0);
     assert(assumptions.size() == 0);
     if(!ok) return l_False;
+    
+    return solve1();
+}
 
-    if(query == lit_Undef || (data.has(query) && soft(query))) {
-        trace(circ, 10, "Disable checker");
-        checker.addEmptyClause();
+lbool Circumscription::solve1() {
+    if(query != lit_Undef) {
+        if((!data.has(query) || soft(query))) {
+            trace(circ, 10, "Activate checker");
+            assert(checker == NULL);
+            checker = new Checker(*this);
+        }
+        addClause(query);
     }
-    if(query != lit_Undef) addClause(query);
     
     int count = 0;
     lbool status;
@@ -340,6 +296,48 @@ lbool Circumscription::solve() {
     }
 
     return count > 0 ? l_True : l_False;
+}
+
+lbool Circumscription::solve2() {
+//    if(query == lit_Undef || (data.has(query) && soft(query))) {
+//        trace(circ, 10, "Disable checker");
+//        checker.addEmptyClause();
+//    }
+//    if(query != lit_Undef) addClause(query);
+//    
+//    int count = 0;
+//    lbool status;
+//    for(;;) {
+//        setAssumptions();
+//        status = solveWithBudget();
+//        if(status == l_Undef) return l_Undef;
+//        if(status == l_True) {
+//            status = check();
+//            if(status == l_Undef) return l_Undef;
+//            if(status == l_True) learnClauseFromCounterModel();
+//            else {
+//                assert(status == l_False);
+//                enumerateModels(count);
+//                if(count == option_n) break;
+//            }
+//        }
+//        else {
+//            assert(status == l_False);
+//            trace(circ, 2, "UNSAT! Conflict of size " << conflict.size());
+//            trace(circ, 100, "Conflict: " << conflict);
+//            
+//            if(conflict.size() == 0) break;
+//
+//            shrinkConflict();
+//            trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
+//
+//            assert(conflict.size() > 0);
+//            trace(circ, 4, "Analyze conflict of size " << conflict.size());
+//            processConflict();
+//        }
+//    }
+//
+//    return count > 0 ? l_True : l_False;
 }
 
 void Circumscription::setAssumptions() {
@@ -503,16 +501,17 @@ void Circumscription::enumerateModels(int& count) {
 }
 
 lbool Circumscription::check() {
-    checker.cancelUntil(0);
-    checker.assumptions.clear();
+    if(checker == NULL) return l_False;
+    checker->cancelUntil(0);
+    checker->assumptions.clear();
     vec<Lit> lits;
-    for(int i = 0; i < groupLits.size(); i++) checker.assumptions.push(value(groupLits[i]) == l_False ? groupLits[i] : ~groupLits[i]);
+    for(int i = 0; i < groupLits.size(); i++) checker->assumptions.push(value(groupLits[i]) == l_False ? groupLits[i] : ~groupLits[i]);
     for(int i = 0; i < weakLits.size(); i++) {
         if(value(weakLits[i]) == l_False) lits.push(weakLits[i]);
-        else checker.assumptions.push(weakLits[i]);
+        else checker->assumptions.push(weakLits[i]);
     }
-    checker.addClause_(lits);
-    return checker.solveWithBudget();
+    checker->addClause_(lits);
+    return checker->solveWithBudget();
 }
 
 void Circumscription::learnClauseFromAssumptions() {
@@ -535,14 +534,15 @@ void Circumscription::learnClauseFromModel() {
 }
 
 void Circumscription::learnClauseFromCounterModel() {
+    assert(checker != NULL);
     vec<Lit> lits;
-    for(int i = 0; i < groupLits.size(); i++) lits.push(checker.value(groupLits[i]) == l_False ? groupLits[i] : ~groupLits[i]);
-    for(int i = 0; i < weakLits.size(); i++) if(checker.value(weakLits[i]) == l_False) lits.push(weakLits[i]);
+    for(int i = 0; i < groupLits.size(); i++) lits.push(checker->value(groupLits[i]) == l_False ? groupLits[i] : ~groupLits[i]);
+    for(int i = 0; i < weakLits.size(); i++) if(checker->value(weakLits[i]) == l_False) lits.push(weakLits[i]);
     trace(circ, 10, "Blocking clause from counter model: " << lits);
     cancelUntil(0);
-    checker.cancelUntil(0);
+    checker->cancelUntil(0);
     addClause(lits);
-    checker.addClause_(lits);
+    checker->addClause_(lits);
 }
 
 

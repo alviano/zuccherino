@@ -28,6 +28,7 @@ namespace zuccherino {
 class _Circumscription : public GlucoseWrapper {
 public:
     _Circumscription();
+    _Circumscription(const _Circumscription& init);
     ~_Circumscription();
     
     inline bool addGreaterEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t weight) { return wcPropagator.addGreaterEqual(lits, weights, weight); }
@@ -48,18 +49,12 @@ public:
     Circumscription();
     ~Circumscription();
     
-    virtual Var newVar(bool polarity = true, bool dvar = true);
     bool interrupt();
     
     void setQuery(Lit lit);
     void addGroupLit(Lit lit);
     void addWeakLit(Lit lit);
     void addVisible(Lit lit, const char* str, int len);
-    bool addInputClause(vec<Lit>& lits);
-    bool addGreaterEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t weight);
-    bool addEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t weight);
-    void addSP(Var atom, Lit body, vec<Var>& rec);
-    void addHCC(int hccId, vec<Var>& recHead, Lit body, vec<Var>& recBody);
     void endProgram(int numberOfVariables);
     
     void parse(gzFile in);
@@ -70,11 +65,13 @@ public:
     bool hasQuery() const { return query != lit_Undef; }
     
 private:
-    class Checker : public _Circumscription {
+    class Checker: public _Circumscription {
         friend class Circumscription;
     public:
+        inline Checker() {}
+        inline Checker(const _Circumscription& init) : _Circumscription(init) {}
     };
-    Checker checker;
+    Checker* checker;
     
     struct LitData : LitDataBase {
         inline LitData() : group(1), weak(false), soft(false) {}
@@ -114,6 +111,9 @@ private:
     void learnClauseFromAssumptions();
     void learnClauseFromModel();
     void learnClauseFromCounterModel();
+    
+    lbool solve1();
+    lbool solve2();
 };
 
 }

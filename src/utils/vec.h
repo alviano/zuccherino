@@ -15,18 +15,21 @@
  *
  */
 
-#include "Propagator.h"
+#ifndef zuccherino_vec_h
+#define zuccherino_vec_h
 
-#include "GlucoseWrapper.h"
+#include <mtl/Vec.h>
 
 namespace zuccherino {
+    
+template<class T>
+class vec : public Glucose::vec<T> {
+public:
+    inline vec() : Glucose::vec<T>() {}
+    inline vec(const vec<T>& init) : Glucose::vec<T>() { init.copyTo(*this); }
+    inline vec<T>& operator=(const vec<T>& right) { right.copyTo(*this); return *this; }
+};
 
-Propagator::Propagator(GlucoseWrapper& solver_) : solver(solver_) {
-    solver.add(this);
 }
 
-Propagator::Propagator(GlucoseWrapper& solver_, const Propagator& init) : solver(solver_) {
-    solver.add(this);
-}
-
-}
+#endif

@@ -23,6 +23,7 @@
 #include "print.h"
 #include "trace.h"
 #include "parse.h"
+#include "vec.h"
 #include <simp/SimpSolver.h>
 #include <iostream>
 #include <sstream>
@@ -42,7 +43,6 @@ using std::stringstream;
 using Glucose::Lit;
 using Glucose::lit_Undef;
 using Glucose::Var;
-using Glucose::vec;
 using Glucose::lbool;
 using Glucose::CRef;
 using Glucose::CRef_Undef;

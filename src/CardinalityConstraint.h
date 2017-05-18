@@ -29,9 +29,11 @@ public:
     struct VarData : VarDataAxiomsPropagator<CardinalityConstraint> {};
     struct LitData : LitDataAxiomsPropagator {};
 
+    CardinalityConstraint(const CardinalityConstraint& init);
+
 private:
     inline CardinalityConstraint(vec<Lit>& lits_, int bound) { assert(bound >= 0); lits_.moveTo(lits); loosable = lits.size() - bound; }
-
+    
     string toString() const;
 
     vec<Lit> lits;
@@ -42,7 +44,8 @@ class CardinalityConstraintPropagator: public AxiomsPropagator<CardinalityConstr
     friend AxiomsPropagator;
 public:
     inline CardinalityConstraintPropagator(GlucoseWrapper& solver) : AxiomsPropagator(solver, true) {}
-
+    inline CardinalityConstraintPropagator(GlucoseWrapper& solver, const CardinalityConstraintPropagator& init) : AxiomsPropagator(solver, init) {}
+    
     virtual bool addGreaterEqual(vec<Lit>& lits, int bound);
     bool addLessEqual(vec<Lit>& lits, int bound);
     bool addEqual(vec<Lit>& lits, int bound);

@@ -27,6 +27,7 @@ class GlucoseWrapper;
 class Propagator {
 public:
     Propagator(GlucoseWrapper& solver);
+    Propagator(GlucoseWrapper& solver, const Propagator& init);
     virtual ~Propagator() {}
     
     virtual bool activate() = 0;

@@ -21,6 +21,11 @@
 
 namespace zuccherino {
 
+WeightConstraint::WeightConstraint(const WeightConstraint& init) : loosable(init.loosable) {
+    init.lits.copyTo(lits);
+    init.weights.copyTo(weights);
+}
+
 WeightConstraint::WeightConstraint(vec<Lit>& lits_, vec<int64_t>& weights_, int64_t bound) {
     assert(bound >= 0);
     assert(lits_.size() == weights_.size());

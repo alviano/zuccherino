@@ -35,6 +35,7 @@ template<typename Axiom, typename P>
 class AxiomsPropagator : public Propagator {
 public:
     AxiomsPropagator(GlucoseWrapper& solver, bool notifyOnCancel = false);
+    AxiomsPropagator(GlucoseWrapper& solver, const AxiomsPropagator& init);
     virtual ~AxiomsPropagator();
     
     virtual bool activate() { return true; }
@@ -71,6 +72,15 @@ private:
 
 template<typename Axiom, typename P>
 AxiomsPropagator<Axiom, P>::AxiomsPropagator(GlucoseWrapper& solver, bool notifyOnCancel_) : Propagator(solver), notifyOnCancel(notifyOnCancel_) {}
+
+template<typename Axiom, typename P>
+AxiomsPropagator<Axiom, P>::AxiomsPropagator(GlucoseWrapper& solver, const AxiomsPropagator& init) : Propagator(solver, init), data(init.data), notifyOnCancel(init.notifyOnCancel) {
+    assert(solver.decisionLevel() == 0);
+    for(int i = 0; i < init.axioms.size(); i++) {
+        axioms.push(new Axiom(*init.axioms[i]));
+    }
+    init.conflictClause.copyTo(conflictClause);
+}
 
 template<typename Axiom, typename P>
 AxiomsPropagator<Axiom, P>::~AxiomsPropagator() {

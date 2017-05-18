@@ -21,6 +21,11 @@
 
 namespace zuccherino {
 
+SourcePointers::SourcePointers(GlucoseWrapper& solver, const SourcePointers& init) : Propagator(solver, init), nextToPropagate(init.nextToPropagate), conflictLit(init.conflictLit), data(init.data) {
+    init.flagged.copyTo(flagged);
+    init.flagged2.copyTo(flagged2);
+}
+    
 void SourcePointers::onCancel() {
     nextToPropagate = solver.nAssigns();    
 }
@@ -193,7 +198,7 @@ void SourcePointers::add(Var atom, Lit body, vec<Var>& rec) {
     spOf(body).push(atom);
     for(int i = 0; i < rec.size(); i++) {
         s.rec.push(rec[i]);
-        inRecBody(rec[i]).push(SuppIndex(atom, supp(atom).size()-1));
+        inRecBody(rec[i]).push(SuppIndex::create(atom, supp(atom).size()-1));
     }
     
     rec.clear();

@@ -27,6 +27,7 @@ namespace zuccherino {
 class GlucoseWrapper : public Glucose::SimpSolver {
 public:
     inline GlucoseWrapper() : nTrailPosition(0) { setIncrementalMode(); }
+    GlucoseWrapper(const GlucoseWrapper& init);
     
     void parse(gzFile in);
     

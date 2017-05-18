@@ -26,7 +26,14 @@ namespace zuccherino {
 
 #define trace_(level, msg) trace(solver, level, (id != "" ? "[" + id + "]": "") << msg)
 
-    
+GlucoseWrapper::GlucoseWrapper(const GlucoseWrapper& init) : Glucose::SimpSolver(init), nTrailPosition(init.nTrailPosition), id(init.id) {
+    assert(decisionLevel() == 0);
+    init.trailPosition.copyTo(trailPosition);
+//    for(int i = 0; i < init.propagators.size(); i++) propagators.push(init.propagators[i]->clone());
+    init.conflictFromPropagators.copyTo(conflictFromPropagators);
+    reasonFromPropagators.growTo(init.reasonFromPropagators.size(), NULL);
+}
+
 void GlucoseWrapper::parse(gzFile in_) {
     Glucose::StreamBuffer in(in_);
 

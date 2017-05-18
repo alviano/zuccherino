@@ -939,7 +939,7 @@ bool Solver::litRedundant(Lit p, uint32_t abstract_levels) {
 |________________________________________________________________________________________________@*/
 void Solver::analyzeFinal(Lit p, vec <Lit> &out_conflict) {
     out_conflict.clear();
-    out_conflict.push(p);
+    if(p != lit_Undef) out_conflict.push(p);
 
     if(decisionLevel() == 0)
         return;
@@ -1474,10 +1474,19 @@ lbool Solver::search(int nof_conflicts) {
             if(conflicts % 5000 == 0 && var_decay < max_var_decay)
                 var_decay += 0.01;
 
-            if(decisionLevel() == 0) {
+            if(decisionLevel() <= assumptions.size()) {
+                if(confl == CRef_Undef - 1) {
+                    vec<Lit> lits;
+                    if(conflictPropagators(lits)) { for(int i = 0; i < lits.size(); i++) seen[var(lits[i])] = 1; } else { assert(0); }
+                }
+                else {
+                    Clause& lits = ca[confl];
+                    for(int i = 0; i < lits.size(); i++) seen[var(lits[i])] = 1;
+                }
+                analyzeFinal(lit_Undef, conflict);
                 return l_False;
-
             }
+            
             if(adaptStrategies && conflicts == 100000) {
                 cancelUntil(0);
                 adaptSolver();

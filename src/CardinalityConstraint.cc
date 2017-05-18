@@ -21,6 +21,10 @@
 
 namespace zuccherino {
 
+CardinalityConstraint::CardinalityConstraint(const CardinalityConstraint& init) : loosable(init.loosable) {
+    init.lits.copyTo(lits);
+}
+
 string CardinalityConstraint::toString() const {
     stringstream ss;
     ss << lits << ":" << loosable;

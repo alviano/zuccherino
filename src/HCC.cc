@@ -27,6 +27,10 @@ lbool HCC::UsSolver::solve(vec<Lit>& assumptions_) {
     return GlucoseWrapper::solveWithBudget();
 }
 
+HCC::HCC(GlucoseWrapper& solver, const HCC& init) : Propagator(solver, init), usSolver(init.usSolver), nextToPropagate(init.nextToPropagate), conflictLit(init.conflictLit), data(init.data) {
+    init.rules.copyTo(rules);
+}
+
 HCC::HCC(GlucoseWrapper& solver, int id) : Propagator(solver), nextToPropagate(0), conflictLit(lit_Undef) { 
     stringstream ss;
     ss << "HCC " << id;
