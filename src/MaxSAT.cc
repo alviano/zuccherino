@@ -218,6 +218,9 @@ void MaxSAT::shrinkConflict(int64_t limit) {
     vec<Lit> allAssumptions;
     for(int i = 0; i < core.size(); i++) allAssumptions.push(~core[i]);
     
+    uint64_t budget = conflicts - conflicts_bkp;
+    if(budget < 1000) budget = 1000;
+    
     assumptions.clear();
     const int progressionFrom = 1;
     int progression = progressionFrom;
@@ -227,6 +230,7 @@ void MaxSAT::shrinkConflict(int64_t limit) {
             if(progression == progressionFrom) break;
             progression = progressionFrom;
             fixed = assumptions.size();
+            budget /= 2;
             continue;
         }
 
@@ -238,7 +242,9 @@ void MaxSAT::shrinkConflict(int64_t limit) {
             assumptions.push(allAssumptions[i]);
         }
         
-        if(solveWithBudget() == l_False) {
+        setConfBudget(budget);
+        lbool status = solveWithBudget();
+        if(status == l_False) {
             trace(maxsat, 10, "Shrink: reduce to size " << conflict.size());
             progression = progressionFrom;
             
@@ -268,12 +274,13 @@ void MaxSAT::shrinkConflict(int64_t limit) {
             allAssumptions.shrink_(allAssumptions.size() - j);
         }
         else {
-//            trace(maxsat, 20, (status == l_True ? "SAT!" : "UNDEF"));
+            trace(maxsat, 20, (status == l_True ? "SAT!" : "UNDEF"));
             progression *= 2;
         }
         cancelUntil(0);
     }
     core.moveTo(conflict);
+    budgetOff();
 }
 
 int64_t MaxSAT::computeConflictWeight() const {
@@ -282,28 +289,86 @@ int64_t MaxSAT::computeConflictWeight() const {
     return min;
 }
 
+//void MaxSAT::processConflict(int64_t weight) {
+//    assert(decisionLevel() == 0);
+//    assert(conflict.size() > 0);
+//    trace(maxsat, 10, "Use algorithm one");
+//    vec<Lit> lits;
+//    int bound = conflict.size() - 1;
+//    while(conflict.size() > 0) {
+//        weights[var(conflict.last())] -= weight;
+//        lits.push(~conflict.last());
+//        conflict.pop();
+//    }
+//    assert(conflict.size() == 0);
+//    for(int i = 0; i < bound; i++) {
+//        newVar();
+//        if(i != 0) addClause(~softLits.last(), mkLit(nVars()-1));
+//        setFrozen(nVars()-1, true);
+//        weights.last() = weight;
+//        softLits.push(mkLit(nVars()-1));
+//        lits.push(~mkLit(nVars()-1));
+//    }
+//    
+//    ccPropagator.addGreaterEqual(lits, bound);
+//}
 void MaxSAT::processConflict(int64_t weight) {
     assert(decisionLevel() == 0);
-    assert(conflict.size() > 0);
-    trace(maxsat, 10, "Use algorithm one");
-    vec<Lit> lits;
-    int bound = conflict.size() - 1;
-    while(conflict.size() > 0) {
-        weights[var(conflict.last())] -= weight;
-        lits.push(~conflict.last());
-        conflict.pop();
-    }
-    assert(conflict.size() == 0);
-    for(int i = 0; i < bound; i++) {
-        newVar();
-        if(i != 0) addClause(~softLits.last(), mkLit(nVars()-1));
-        setFrozen(nVars()-1, true);
-        weights.last() = weight;
-        softLits.push(mkLit(nVars()-1));
-        lits.push(~mkLit(nVars()-1));
+    trace(maxsat, 10, "Use algorithm kdyn");
+    
+    const int b = conflict.size() <= 2 ? 8 : ceil(log10(conflict.size()) * 16);
+    const int m = ceil(2.0 * conflict.size() / (b-2.0));
+    const int N = ceil(
+            (
+                conflict.size()         // literals in the core
+                + conflict.size() - 1   // new soft literals
+                + 2 * (m-1)             // new connectors
+            ) / (m * 2.0)
+        );
+    // ceil((conflict.size() + m) / static_cast<double>(m));
+    trace(maxsat, 15, "At most " << N*2 << " elements in " << m << " new constraints");
+
+    Lit prec = lit_Undef;
+    for(;;) {
+        assert(conflict.size() > 0);
+        
+        vec<Lit> lits;
+        
+        int i = N;
+        if(prec != lit_Undef) { lits.push(prec); i--; }
+        for(; i > 0; i--) {
+            if(conflict.size() == 0) break;
+            weights[var(conflict.last())] -= weight;
+            lits.push(~conflict.last());
+            conflict.pop();
+        }
+        assert(lits.size() > 0);
+        int bound = lits.size()-1;
+        
+        if(conflict.size() > 0) bound++;
+
+        for(i = 0; i < bound; i++) {
+            newVar();
+            setFrozen(nVars()-1, true);
+            lits.push(~mkLit(nVars()-1));
+            if(i != 0) addClause(~mkLit(nVars()-2), mkLit(nVars()-1)); // symmetry breaker
+            if(i == 0 && conflict.size() > 0) { 
+                weights.last() = 0;
+                prec = mkLit(nVars()-1);
+            }
+            else {
+                weights.last() = weight;
+                softLits.push(mkLit(nVars()-1));
+            }
+        }
+        
+        trace(maxsat, 25, "Add constraint of size " << lits.size());
+        ccPropagator.addGreaterEqual(lits, bound);
+        
+        if(conflict.size() == 0) break;
     }
     
-    ccPropagator.addGreaterEqual(lits, bound);
+    assert(conflict.size() == 0);
 }
 
 lbool MaxSAT::solve() {
@@ -318,6 +383,7 @@ lbool MaxSAT::solve() {
         hardening();
         setAssumptions(limit);
         if(lowerBound == upperBound) break;
+        conflicts_bkp = conflicts;
         status = solveWithBudget();
         if(status == l_True) { 
             updateUpperBound();

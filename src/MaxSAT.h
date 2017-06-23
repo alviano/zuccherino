@@ -48,6 +48,8 @@ private:
     int64_t lowerBound;
     int64_t upperBound;
     
+    uint64_t conflicts_bkp;
+    
     void addToLowerBound(int64_t value);
     void updateUpperBound();
     
