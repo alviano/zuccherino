@@ -190,17 +190,20 @@ void MaxSAT::trimConflict() {
 
     int counter = 0;
 
+    lbool status;
     do{
         counter++;
         assumptions.clear();
         for(int i = 0; i < conflict.size(); i++) assumptions.push(~conflict[i]);
-        solveWithBudget();
+        status = solveWithBudget();
+        assert(status == l_False);
         trace(maxsat, 15, "Trim " << assumptions.size() - conflict.size() << " literals from conflict");
         trace(maxsat, 100, "Conflict: " << conflict);
         cancelUntil(0);
         if(conflict.size() <= 1) return;
     }while(assumptions.size() > conflict.size());
     
+
     if(counter % 2 == 1) for(int i = 0; i < assumptions.size(); i++) conflict[i] = ~assumptions[i];
     
     assert(conflict.size() > 1);
@@ -244,6 +247,7 @@ void MaxSAT::shrinkConflict(int64_t limit) {
         
         setConfBudget(budget);
         lbool status = solveWithBudget();
+        budgetOff();
         if(status == l_False) {
             trace(maxsat, 10, "Shrink: reduce to size " << conflict.size());
             progression = progressionFrom;
@@ -280,7 +284,6 @@ void MaxSAT::shrinkConflict(int64_t limit) {
         cancelUntil(0);
     }
     core.moveTo(conflict);
-    budgetOff();
 }
 
 int64_t MaxSAT::computeConflictWeight() const {
@@ -399,7 +402,8 @@ lbool MaxSAT::solve() {
             assert_msg(computeConflictWeight() == limit, "computeConflictWeight()=" << computeConflictWeight() << "; limit=" << limit << "; conflict=" << conflict);
             shrinkConflict(limit);
             trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
-
+            assert(decisionLevel() == 0);
+            
             int64_t w = computeConflictWeight();
             assert(w == limit);
             addToLowerBound(w);
