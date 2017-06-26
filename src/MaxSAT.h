@@ -61,6 +61,7 @@ private:
     void shrinkConflict(int64_t limit);
     int64_t computeConflictWeight() const;
     void processConflict(int64_t weight);
+    void preprocess();
     
     void enumerateModels();
 

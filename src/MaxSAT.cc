@@ -374,7 +374,70 @@ void MaxSAT::processConflict(int64_t weight) {
     assert(conflict.size() == 0);
 }
 
+void MaxSAT::preprocess() {
+    assert(decisionLevel() == 0);
+    if(softLits.size() == 0) return;
+    trace(maxsat, 10, "Preprocessing");
+    
+    trace(maxsat, 20, "Preprocessing: cache signs of soft literals");
+    vec<bool> signs;
+    signs.growTo(nVars());
+    for(int i = 0; i < softLits.size(); i++) {
+        if(weights[var(softLits[i])] != weights[var(softLits[0])]) {
+            trace(maxsat, 10, "Preprocessing: detected weighted instance; skip preprocessing");
+            return;
+        }
+        signs[var(softLits[i])] = sign(softLits[i]);
+    }
+    
+    trace(maxsat, 20, "Preprocessing: partition clauses by increasing size");
+    vec<vec<CRef>*> clausesPartition;
+    vec<int> sizes;
+    Glucose::Map<int, int> sizeMap;
+    for(int i = 0; i < clauses.size(); i++) {
+        Clause& clause = ca[clauses[i]];
+        assert(clause.size() >= 2);
+        if(!sizeMap.has(clause.size())) { 
+            sizes.push(clause.size());
+            sizeMap.insert(clause.size(), clausesPartition.size());
+            clausesPartition.push(new vec<CRef>());
+        }
+        clausesPartition[sizeMap[clause.size()]]->push(clauses[i]);
+    }
+    sizes.sort();
+
+    trace(maxsat, 20, "Preprocessing: search for input clauses being cores");
+    for(int i = 0; i < sizes.size(); i++) {
+        trace(maxsat, 30, "Preprocessing: consider clauses of size " << sizes[i]);
+        vec<CRef>& clauses = *clausesPartition[sizeMap[sizes[i]]];
+        for(int j = 0; j < clauses.size(); j++) {
+            Clause& clause = ca[clauses[j]];
+            assert(clause.size() == sizes[i]);
+            
+            int64_t min = INT64_MAX;
+            for(int k = 0; k < clause.size(); k++) {
+                if(value(clause[k]) == l_False) continue;
+                if(weights[var(clause[k])] == 0 || signs[var(clause[k])] == sign(clause[k])) { min = INT64_MAX; break; }
+                if(weights[var(clause[k])] < min) min = weights[var(clause[k])];
+            }
+            if(min == INT64_MAX) continue;
+            
+            conflict.clear();
+            for(int k = 0; k < clause.size(); k++) if(value(clause[k]) != l_False) conflict.push(clause[k]);
+            addToLowerBound(min);
+            assert(conflict.size() > 0);
+            trace(maxsat, 4, "Analyze conflict of size " << conflict.size() << " and weight " << min);
+            processConflict(min);
+        }
+    }
+
+    trace(maxsat, 20, "Preprocessing: clean up");
+    for(int i = 0; i < clausesPartition.size(); i++) delete clausesPartition[i];
+}
+
 lbool MaxSAT::solve() {
+    preprocess();
+    
     lbool status;
 //    = solveWithBudget();
 //    if(status == l_False) { printUnsat(); return l_False; }
