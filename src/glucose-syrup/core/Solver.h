@@ -401,6 +401,8 @@ protected:
     template<typename Lits> void processReason(Lit p, const Lits& c, vec <Lit> &out_learnt, vec <Lit> &selectors, int &pathC); // zuccherino: moved navigation of clause
     void     analyze          (CRef confl, vec<Lit>& out_learnt, vec<Lit> & selectors, int& out_btlevel,unsigned int &nblevels,unsigned int &szWithoutSelectors);    // (bt = backtrack)
     void     analyzeFinal     (Lit p, vec<Lit>& out_conflict);                         // COULD THIS BE IMPLEMENTED BY THE ORDINARIY "analyze" BY SOME REASONABLE GENERALIZATION?
+    void     analyzeFinal     (CRef confl, vec<Lit>& out_conflict);
+    void     analyzeFinal_    (vec<Lit>& out_conflict);
     bool     litRedundant     (Lit p, uint32_t abstract_levels);                       // (helper method for 'analyze()')
     lbool    search           (int nof_conflicts);                                     // Search for a given number of conflicts.
     virtual lbool    solve_           (bool do_simp = true, bool turn_off_simp = false);                                                      // Main solve method (assumptions given in 'assumptions').

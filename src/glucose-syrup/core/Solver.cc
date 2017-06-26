@@ -938,14 +938,36 @@ bool Solver::litRedundant(Lit p, uint32_t abstract_levels) {
 |    stores the result in 'out_conflict'.
 |________________________________________________________________________________________________@*/
 void Solver::analyzeFinal(Lit p, vec <Lit> &out_conflict) {
+    assert(p != lit_Undef);
+    
     out_conflict.clear();
-    if(p != lit_Undef) out_conflict.push(p);
+    out_conflict.push(p);
 
-    if(decisionLevel() == 0)
-        return;
+    if(decisionLevel() == 0) return;
 
     seen[var(p)] = 1;
+    analyzeFinal_(out_conflict);
+    seen[var(p)] = 0;
+}
 
+void Solver::analyzeFinal(CRef confl, vec <Lit> &out_conflict) {
+    out_conflict.clear();
+
+    if(decisionLevel() == 0) return;
+
+    vec<Lit> lits;
+    if(confl == CRef_Undef - 1) { if(conflictPropagators(lits)) {} else { assert(0); } }
+    else {
+        Clause& clause = ca[confl];
+        for(int i = 0; i < clause.size(); i++) lits.push(clause[i]);
+    }
+
+    for(int i = 0; i < lits.size(); i++) seen[var(lits[i])] = 1;
+    analyzeFinal_(out_conflict);
+//    for(int i = 0; i < lits.size(); i++) seen[var(lits[i])] = 0;
+}
+
+void Solver::analyzeFinal_(vec <Lit> &out_conflict) {
     for(int i = trail.size() - 1; i >= trail_lim[0]; i--) {
         Var x = var(trail[i]);
         if(seen[x]) {
@@ -967,10 +989,7 @@ void Solver::analyzeFinal(Lit p, vec <Lit> &out_conflict) {
             seen[x] = 0;
         }
     }
-
-    seen[var(p)] = 0;
 }
-
 
 void Solver::uncheckedEnqueue(Lit p, CRef from) {
     assert(value(p) == l_Undef);
@@ -1475,15 +1494,7 @@ lbool Solver::search(int nof_conflicts) {
                 var_decay += 0.01;
 
             if(decisionLevel() <= assumptions.size()) {
-                if(confl == CRef_Undef - 1) {
-                    vec<Lit> lits;
-                    if(conflictPropagators(lits)) { for(int i = 0; i < lits.size(); i++) seen[var(lits[i])] = 1; } else { assert(0); }
-                }
-                else {
-                    Clause& lits = ca[confl];
-                    for(int i = 0; i < lits.size(); i++) seen[var(lits[i])] = 1;
-                }
-                analyzeFinal(lit_Undef, conflict);
+                analyzeFinal(confl, conflict);
                 return l_False;
             }
             
