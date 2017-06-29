@@ -59,12 +59,22 @@ public:
     
     void parse(gzFile in);
     
-    void printModel() const;
+    void printModel(int count) const;
     lbool solve();
     
     bool hasQuery() const { return query != lit_Undef; }
     
 private:
+    string models_none;
+    string models_start;
+    string models_end;
+    string model_start;
+    string model_sep;
+    string model_end;
+    string lit_start;
+    string lit_sep;
+    string lit_end;
+
     class Checker: public _Circumscription {
         friend class Circumscription;
     public:
@@ -74,12 +84,14 @@ private:
     Checker* checker;
     
     struct LitData : LitDataBase {
-        inline LitData() : group(1), weak(false), soft(false) {}
+        inline LitData() : group(false), weak(false), soft(false) {}
         int group:1;
         int weak:1;
         int soft:1;
     };
     Data<VarDataBase, LitData> data;
+    inline void group(Lit lit, bool value) { data(lit).group = value; }
+    inline bool group(Lit lit) const { return data(lit).group; }
     inline void weak(Lit lit, bool value) { data(lit).weak = value; }
     inline bool weak(Lit lit) const { return data(lit).weak; }
     inline void soft(Lit lit, bool value) { data(lit).soft = value; }
@@ -112,8 +124,10 @@ private:
     void learnClauseFromModel();
     void learnClauseFromCounterModel();
     
-    lbool solve1();
-    lbool solve2();
+    lbool solveWithoutChecker(int& count);
+    lbool solve1(int& count);
+    lbool solve2(int& count);
+    lbool processConflictsUntilModel(int& conflicts);
 };
 
 }

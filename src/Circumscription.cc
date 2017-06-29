@@ -26,6 +26,28 @@ Glucose::IntOption option_circ_wit("TRACE", "circ-wit", "Number of desired witne
 
 namespace zuccherino {
 
+static int readline(Glucose::StreamBuffer& in, char* buff, unsigned BUFFSIZE) {
+    int count = 0;
+    while(*in != EOF && *in != '\n' && static_cast<unsigned>(count) < BUFFSIZE) { buff[count++] = *in; ++in; }
+    if(static_cast<unsigned>(count) >= BUFFSIZE) cerr << "PARSE ERROR! String " << buff << " is too long!" << endl, exit(3);
+    buff[count] = '\0';
+    return count;
+}
+
+static char* startswith(char*& str, const char* pre) {
+    unsigned len = strlen(pre);
+    if(strncmp(str, pre, len) != 0) return NULL;
+    return str = str + len;
+}
+
+static void pretty_print(const string& str, int count) {
+    if(str.size() == 0) cout << '\n';
+    else {
+        for(unsigned i = 0; i < str.size() - 1; i++) { if(str[i] == '#') cout << count; else cout << str[i]; }
+        if(str[str.size()-1] != '\\') cout << str[str.size()-1] << '\n';
+    }
+}
+
 _Circumscription::_Circumscription() : ccPropagator(*this), wcPropagator(*this, &ccPropagator), spPropagator(NULL) {
 }
 
@@ -49,7 +71,7 @@ Circumscription::~Circumscription() {
 bool Circumscription::interrupt() {
     GlucoseWrapper::interrupt();
     if(model.size() == 0) return false;
-    printModel();
+    printModel(1);
     return true;
 }
 
@@ -62,6 +84,9 @@ void Circumscription::addGroupLit(Lit lit) {
     assert(lit != lit_Undef);
     assert(!data.has(lit) && !data.has(~lit));
     
+    data.push(*this, lit);
+    
+    group(lit, true);
     groupLits.push(lit);
 }
 
@@ -108,14 +133,14 @@ void _Circumscription::endProgram(int numberOfVariables) {
 }
 
 void Circumscription::endProgram(int numberOfVariables) {
-//    if(query != lit_Undef) {
-//        setFrozen(var(query), true);
+    if(query != lit_Undef) {
+        setFrozen(var(query), true);
 //        checker.setFrozen(var(query), true);
 //        for(int i = 0; i < groupLits.size(); i++) checker.setFrozen(var(groupLits[i]), true);
 //        for(int i = 0; i < softLits.size(); i++) checker.setFrozen(var(softLits[i]), true);
 //        if(option_n != 1) for(int i = 0; i < visible.size(); i++) checker.setFrozen(var(visible[i].lit), true);
 //        checker.endProgram(numberOfVariables);
-//    }
+    }
     for(int i = 0; i < groupLits.size(); i++) setFrozen(var(groupLits[i]), true);
     for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
     if(option_n != 1) for(int i = 0; i < visible.size(); i++) setFrozen(var(visible[i].lit), true);
@@ -147,12 +172,19 @@ void Circumscription::parse(gzFile in_) {
             
             if(!eagerMatch(in, "circ")) cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
             
-            Lit lit = parseLit(in, *this);
-            setQuery(lit);
-            
+            skipLine(in);
             pcirc = true;
         }
         else if(*in == 'c') skipLine(in);
+        else if(*in == 'q') {
+            ++in;
+            
+            if(query != lit_Undef) cerr << "PARSE ERROR! Query literal already set: " << query << endl, exit(3);
+            
+            Lit lit = parseLit(in, *this);
+            if(lit == lit_Undef) cerr << "PARSE ERROR! Invalid query literal: " << lit << endl, exit(3);
+            setQuery(lit);
+        }
         else if(*in == 'w') {
             ++in;
             Lit lit = parseLit(in, *this);
@@ -167,15 +199,26 @@ void Circumscription::parse(gzFile in_) {
         }
         else if(*in == 'v') {
             ++in;
-            Lit lit = parseLit(in, *this);
-            
+            if(*in != ' ') cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
             ++in;
-            int count = 0;
-            while(*in != EOF && *in != '\n' && static_cast<unsigned>(count) < BUFFSIZE) { buff[count++] = *in; ++in; }
-            if(static_cast<unsigned>(count) >= BUFFSIZE) cerr << "PARSE ERROR! Value of visible literal " << lit << " is too long!" << endl, exit(3);
-            buff[count] = '\0';
             
-            addVisible(lit, buff, count);
+            int count = readline(in, buff, BUFFSIZE);
+            char* tmp = buff;
+            
+            if(startswith(tmp, "models none:")) models_none = string(tmp);
+            else if(startswith(tmp, "models start:")) models_start = string(tmp);
+            else if(startswith(tmp, "models end:")) models_end = string(tmp);
+            else if(startswith(tmp, "model start:")) model_start = string(tmp);
+            else if(startswith(tmp, "model sep:")) model_sep = string(tmp);
+            else if(startswith(tmp, "model end:")) model_end = string(tmp);
+            else if(startswith(tmp, "lit start:")) lit_start = string(tmp);
+            else if(startswith(tmp, "lit sep:")) lit_sep = string(tmp);
+            else if(startswith(tmp, "lit end:")) lit_end = string(tmp);
+            else {
+                Lit lit = parseLit(tmp, *this);
+                tmp++;
+                addVisible(lit, tmp, count - (tmp - buff));
+            }
         }
         else if(*in == '>') {
             ++in;
@@ -232,132 +275,166 @@ void Circumscription::parse(gzFile in_) {
         }
     }
     
+    delete[] buff;
+    
     if(!pcirc) cerr << "PARSE ERROR! Invalid input: must start with 'p circ'" << endl, exit(3);
 }
 
-void Circumscription::printModel() const {
+void Circumscription::printModel(int count) const {
     if(!option_print_model) return;
-    cout << "ANSWER" << endl;
-    for(int i = 0; i < visible.size(); i++) {
+    
+    if(count == 1) pretty_print(models_start, count);
+    else pretty_print(model_sep, count);
+    pretty_print(model_start, count);
+    for(int i = 0, lits = 1; i < visible.size(); i++) {
         assert(var(visible[i].lit) < model.size());
-        if(sign(visible[i].lit) ^ (model[var(visible[i].lit)] == l_True)) cout << visible[i].value << ". ";
+        if(sign(visible[i].lit) ^ (model[var(visible[i].lit)] != l_True)) continue;
+        if(lits > 1) pretty_print(lit_sep, lits);
+        pretty_print(lit_start, lits);
+        cout << visible[i].value;
+        pretty_print(lit_end, lits);
+        lits++;
     }
-    cout << endl;
+    pretty_print(model_end, count);
+    cout.flush();
 }
 
 lbool Circumscription::solve() {
     assert(decisionLevel() == 0);
     assert(assumptions.size() == 0);
-    if(!ok) return l_False;
-    
-    return solve2();
-}
-
-lbool Circumscription::solve1() {
-    if(query != lit_Undef) {
-        if((!data.has(query) || soft(query))) {
-            trace(circ, 10, "Activate checker");
-            assert(checker == NULL);
-            checker = new Checker(*this);
-        }
-        addClause(query);
-    }
+    assert(checker == NULL);
     
     int count = 0;
+    lbool status = l_Undef;
+    if(!ok) status = l_False;
+    else if(query == lit_Undef || (data.has(query) && (soft(query) || group(query))) || (data.has(~query) && group(~query))) {
+        trace(circ, 10, "No checker is required!");
+        status = solveWithoutChecker(count);
+    }
+    else status = solve2(count);
+    
+    if(status == l_False) {
+        assert(count == 0);
+        pretty_print(models_none, count);
+    }
+    else if(status == l_True) {
+        assert(count > 0);
+        pretty_print(models_end, count);
+    }
+    
+    return status;
+}
+
+lbool Circumscription::solveWithoutChecker(int& count) {
+    assert(decisionLevel() == 0);
+    assert(assumptions.size() == 0);
+    assert(checker == NULL);
+    
+    if(query != lit_Undef) addClause(query);
+    
     lbool status;
+    int conflicts = 0;
     for(;;) {
-        setAssumptions();
-        status = solveWithBudget();
+        status = processConflictsUntilModel(conflicts);
         if(status == l_Undef) return l_Undef;
-        if(status == l_True) {
-            status = check();
-            if(status == l_Undef) return l_Undef;
-            if(status == l_True) learnClauseFromCounterModel();
-            else {
-                assert(status == l_False);
-                enumerateModels(count);
-                if(count == option_n) break;
-            }
-        }
+        if(status == l_False) break;
+        assert(status == l_True);
+        enumerateModels(count);
+        if(count == option_n) break;
+    }
+    return count > 0 ? l_True : l_False;
+}
+
+lbool Circumscription::solve1(int& count) {
+    assert(decisionLevel() == 0);
+    assert(assumptions.size() == 0);
+    assert(checker == NULL);
+    assert(query != lit_Undef);
+    
+    trace(circ, 10, "Activate checker");
+    checker = new Checker(*this);
+    addClause(query);
+    
+    lbool status;
+    int conflicts = 0;
+    for(;;) {
+        status = processConflictsUntilModel(conflicts);
+        if(status == l_Undef) return l_Undef;
+        if(status == l_False) break;
+        assert(status == l_True);
+        status = check();
+        if(status == l_Undef) return l_Undef;
+        if(status == l_True) learnClauseFromCounterModel();
         else {
             assert(status == l_False);
-            trace(circ, 2, "UNSAT! Conflict of size " << conflict.size());
-            trace(circ, 100, "Conflict: " << conflict);
-            
-            if(conflict.size() == 0) break;
-
-            shrinkConflict();
-            trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
-
-            assert(conflict.size() > 0);
-            trace(circ, 4, "Analyze conflict of size " << conflict.size());
-            processConflict();
+            enumerateModels(count);
+            if(count == option_n) break;
         }
     }
 
     return count > 0 ? l_True : l_False;
 }
 
-lbool Circumscription::solve2() {
-    int count = 0;
-    bool cardmin = true;
-    lbool status;
+lbool Circumscription::solve2(int& count) {
+    assert(decisionLevel() == 0);
+    assert(assumptions.size() == 0);
+    assert(checker == NULL);
+    assert(query != lit_Undef);
+    
+    trace(circ, 10, "Activate checker");
+    checker = new Checker(*this);
+    
+    int conflicts = 0;
+    lbool status = processConflictsUntilModel(conflicts);
+    if(status != l_True) return status;
+    conflicts = 0;
+    cancelUntil(0);
+
+    addClause(query);
+    
     for(;;) {
-        setAssumptions();
-        status = solveWithBudget();
+        status = processConflictsUntilModel(conflicts);
         if(status == l_Undef) return l_Undef;
-        if(status == l_True) {
-            if(checker == NULL) {
-                if(query != lit_Undef) {
-                    if((!data.has(query) || soft(query))) {
-                        trace(circ, 10, "Activate checker");
-                        assert(checker == NULL);
-                        checker = new Checker(*this);
-                    }
-                    if(value(query) == l_True) {
-                        trace(circ, 20, "Lucky models!");
-                        enumerateModels(count);
-                        if(count == option_n) break;
-                    }
-                    cancelUntil(0);
-                    addClause(query);
-                }
-                continue;
-            }
-            if(cardmin) {
-                trace(circ, 20, "Cardinality optimal models!");
-                enumerateModels(count);
-                if(count == option_n) break;
-                continue;
-            }
-            status = check();
-            if(status == l_Undef) return l_Undef;
-            if(status == l_True) learnClauseFromCounterModel();
-            else {
-                assert(status == l_False);
-                trace(circ, 20, "Checked models!");
-                enumerateModels(count);
-                if(count == option_n) break;
-            }
+        if(status == l_False) break;
+        assert(status == l_True);
+        if(conflicts == 0 || ((status = check()) == l_False)) {
+            trace(circ, 20, (conflicts == 0 ? "Cardinality optimal models!" : "Checked optimal models!"));
+            enumerateModels(count);
+            if(count == option_n) break;
         }
+        else if(status == l_Undef) return l_Undef;
         else {
-            assert(status == l_False);
-            trace(circ, 2, "UNSAT! Conflict of size " << conflict.size());
-            trace(circ, 100, "Conflict: " << conflict);
-            
-            if(conflict.size() == 0) break;
-
-            shrinkConflict();
-            trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
-
-            assert(conflict.size() > 0);
-            trace(circ, 4, "Analyze conflict of size " << conflict.size());
-            processConflict();
-            if(checker != NULL) cardmin = false;
+            assert(status == l_True);
+            trace(circ, 20, "Check failed!");
+            learnClauseFromCounterModel();
         }
     }
 
     return count > 0 ? l_True : l_False;
+}
+
+lbool Circumscription::processConflictsUntilModel(int& conflicts) {
+    lbool status;
+    for(;;) {
+        setAssumptions();
+        assert(decisionLevel() == 0);
+        status = solveWithBudget();
+        
+        if(status != l_False) return status;
+        
+        trace(circ, 2, "UNSAT! Conflict of size " << conflict.size());
+        trace(circ, 100, "Conflict: " << conflict);
+        
+        conflicts++;
+        if(conflict.size() == 0) return l_False;
+
+        shrinkConflict();
+        trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
+
+        assert(conflict.size() > 0);
+        trace(circ, 4, "Analyze conflict of size " << conflict.size());
+        processConflict();
+    }
 }
 
 void Circumscription::setAssumptions() {
@@ -402,12 +479,17 @@ void Circumscription::trimConflict() {
     if(conflict.size() <= 1) return;
 
     int counter = 0;
-
+    lbool status = l_False;
+    
     do{
         counter++;
         assumptions.clear();
         for(int i = 0; i < conflict.size(); i++) assumptions.push(~conflict[i]);
-        solveWithBudget();
+        status = solveWithBudget();
+        if(status == l_Undef) {
+            conflict.clear();
+            for(int i = assumptions.size() - 1; i >= 0; i--) conflict.push(~assumptions[i]);
+        }
         trace(circ, 15, "Trim " << assumptions.size() - conflict.size() << " literals from conflict");
         trace(circ, 100, "Conflict: " << conflict);
         cancelUntil(0);
@@ -493,14 +575,14 @@ void Circumscription::enumerateModels(int& count) {
     if(option_circ_wit == 1) {
         count++;
         copyModel();
-        printModel();
+        printModel(count);
         learnClauseFromModel();
     }
     else {
         assumptions.clear();
         for(int i = 0; i < groupLits.size(); i++) assumptions.push(value(groupLits[i]) == l_True ? groupLits[i] : ~groupLits[i]);
         for(int i = 0; i < weakLits.size(); i++) assumptions.push(value(weakLits[i]) == l_True ? weakLits[i] : ~weakLits[i]);
-        for(int i = 0; i < softLits.size(); i++) if(!weak(softLits[i])) assumptions.push(softLits[i]);
+        for(int i = 0; i < softLits.size(); i++) if(!weak(softLits[i])) assumptions.push(~softLits[i]);
         cancelUntil(0);
         
         int wit = 0;
@@ -509,7 +591,7 @@ void Circumscription::enumerateModels(int& count) {
             count++;
             wit++;
             copyModel();
-            printModel();
+            printModel(count);
             if(wit == option_circ_wit) break;
             if(count == option_n) break;
             if(decisionLevel() == assumptions.size()) break;
@@ -521,7 +603,7 @@ void Circumscription::enumerateModels(int& count) {
 }
 
 lbool Circumscription::check() {
-    if(checker == NULL) return l_False;
+    assert(checker != NULL);
     checker->cancelUntil(0);
     checker->assumptions.clear();
     vec<Lit> lits;

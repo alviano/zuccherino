@@ -48,8 +48,7 @@ int main(int argc, char** argv) {
     gzclose(in);
     
     solver.eliminate(true);
-    lbool ret = solver.okay() ? solver.solve() : l_False;
-    if(ret == l_False) cout << "INCONSISTENT" << endl;
+    lbool ret = solver.solve();
     
     int code = ret == l_True ? 10 : ret == l_False ? 20 : 0;
 #ifndef NDEBUG
