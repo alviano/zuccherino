@@ -25,7 +25,7 @@ Propagator::Propagator(GlucoseWrapper& solver_) : solver(solver_) {
     solver.add(this);
 }
 
-Propagator::Propagator(GlucoseWrapper& solver_, const Propagator& init) : solver(solver_) {
+Propagator::Propagator(GlucoseWrapper& solver_, const Propagator& /*init*/) : solver(solver_) {
     solver.add(this);
 }
 
