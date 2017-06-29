@@ -29,6 +29,7 @@ Glucose::IntOption option_trace_hcc("TRACE", "trace-hcc", "Set trace level of HC
 Glucose::IntOption option_trace_maxsat("TRACE", "trace-maxsat", "Set trace level of MaxSAT solver.", 0, Glucose::IntRange(0, INT32_MAX));
 Glucose::IntOption option_trace_asp("TRACE", "trace-asp", "Set trace level of ASP solver.", 0, Glucose::IntRange(0, INT32_MAX));
 Glucose::IntOption option_trace_circ("TRACE", "trace-circ", "Set trace level of Circumscription solver.", 0, Glucose::IntRange(0, INT32_MAX));
+Glucose::IntOption option_trace_qbf("TRACE", "trace-qbf", "Set trace level of 2QBF solver.", 0, Glucose::IntRange(0, INT32_MAX));
 
 
 #endif

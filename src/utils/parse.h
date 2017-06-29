@@ -38,7 +38,7 @@ int64_t parseLong(B& in) {
 template<class B, class Solver>
 static Glucose::Lit parseLit(B& in, Solver& S) {
     int parsed_lit, var;
-    parsed_lit = parseInt(in);
+    parsed_lit = Glucose::parseInt(in);
     if(parsed_lit == 0) return Glucose::lit_Undef;
     var = abs(parsed_lit)-1;
     while(var >= S.nVars()) S.newVar();
