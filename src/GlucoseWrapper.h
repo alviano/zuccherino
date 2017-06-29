@@ -54,8 +54,8 @@ public:
 
     virtual bool simplifyPropagators();
     virtual bool propagatePropagators();
-    virtual bool conflictPropagators(vec<Lit>& conflict);
-    virtual bool reasonPropagators(Lit lit, vec<Lit>& reason);
+    virtual bool conflictPropagators(Glucose::vec<Lit>& conflict);
+    virtual bool reasonPropagators(Lit lit, Glucose::vec<Lit>& reason);
     virtual bool reasonPropagators(Lit lit);
     
     inline bool addEmptyClause() { vec<Lit> tmp; return addClause_(tmp); }

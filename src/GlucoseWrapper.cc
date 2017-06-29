@@ -124,7 +124,7 @@ void GlucoseWrapper::learnClauseFromModel() {
     for(int i = trail_lim.size() - 1; i >= 0; i--) {
         Lit lit = trail[trail_lim[i]];
         if(level(var(lit)) == 0) continue;
-        assert(reason(var(lit)) == CRef_Undef);
+        assert_msg(reason(var(lit)) == CRef_Undef, "Reason of " << lit << " is " << reason(var(lit)));
         lits.push(~lit);
     }
     trace_(10, "Blocking clause: " << lits);
@@ -216,19 +216,20 @@ bool GlucoseWrapper::propagatePropagators() {
     return true;
 }
 
-bool GlucoseWrapper::conflictPropagators(vec<Lit>& conflict) {
+bool GlucoseWrapper::conflictPropagators(Glucose::vec<Lit>& conflict) {
     if(conflictFromPropagators.size() == 0) return false;
     conflictFromPropagators.moveTo(conflict);
     return true;
 }
 
-bool GlucoseWrapper::reasonPropagators(Lit lit, vec<Lit>& reason_) {
+bool GlucoseWrapper::reasonPropagators(Lit lit, Glucose::vec<Lit>& reason_) {
     assert(reason(var(lit)) == CRef_Undef);
     if(reasonFromPropagators[var(lit)] == NULL) return false;
-    reason_.clear();
-    reasonFromPropagators[var(lit)]->getReason(lit, reason_);
-    assert(reason_.size() > 0);
-    assert(reason_[0] == lit);
+    vec<Lit> lits;
+    reasonFromPropagators[var(lit)]->getReason(lit, lits);
+    assert(lits.size() > 0);
+    assert(lits[0] == lit);
+    lits.moveTo(reason_);
     return true;
 }
 
