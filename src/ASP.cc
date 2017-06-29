@@ -217,6 +217,8 @@ void ASP::parse(gzFile in_) {
         }
     }
     
+    delete[] buff;
+    
     if(!pasp) cerr << "PARSE ERROR! Invalid input: must start with 'p asp'" << endl, exit(3);
 }
 
