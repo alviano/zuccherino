@@ -222,7 +222,8 @@ void MaxSAT::shrinkConflict(int64_t limit) {
     for(int i = 0; i < core.size(); i++) allAssumptions.push(~core[i]);
     
     uint64_t budget = conflicts - conflicts_bkp;
-    if(budget < 1000) budget = 1000;
+    const uint64_t min_budget = 1000;
+    if(budget < min_budget) budget = min_budget;
     
     assumptions.clear();
     const int progressionFrom = 1;
