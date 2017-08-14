@@ -25,7 +25,7 @@ namespace zuccherino {
 
 #define BUFFSIZE 1048576
     
-Printer::Printer(GlucoseWrapper& solver_) : solver(solver_), models_unknown("s UNKNOWN\\n"), models_none("s UNSATISFIABLE\\n"), models_start("s SATISFIABLE\\n"), models_end(""), model_start("c Model #\\nv "), model_sep(""), model_end("\\n"), lit_start(""), lit_sep(" "), lit_end("") {
+Printer::Printer(GlucoseWrapper& solver_) : solver(solver_), buff(NULL), models_unknown("s UNKNOWN\\n"), models_none("s UNSATISFIABLE\\n"), models_start("s SATISFIABLE\\n"), models_end(""), model_start("c Model #\\nv "), model_sep(""), model_end("\\n"), lit_start(""), lit_sep(" "), lit_end("") {
 }
 
 Printer::~Printer() {
