@@ -20,11 +20,7 @@
 #include "GlucoseWrapper.h"
 
 static zuccherino::GlucoseWrapper* solver = NULL;
-void SIGINT_interrupt(int) { 
-    solver->interrupt();
-    sleep(1);
-    exit(0);
-}
+void SIGINT_interrupt(int) { solver->interrupt(); }
 
 int main(int argc, char** argv) {
     premain();
@@ -48,11 +44,6 @@ int main(int argc, char** argv) {
     gzclose(in);
 
     solver.eliminate(true);
-    if(!solver.okay()) {
-        cout << "UNSATISFIABLE" << endl;
-        exit(20);
-    }
-    
     lbool ret = solver.solve();
     
 #ifndef NDEBUG

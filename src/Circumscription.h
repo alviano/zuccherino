@@ -59,22 +59,11 @@ public:
     
     void parse(gzFile in);
     
-    void printModel(int count) const;
     lbool solve();
     
     bool hasQuery() const { return query != lit_Undef; }
     
 private:
-    string models_none;
-    string models_start;
-    string models_end;
-    string model_start;
-    string model_sep;
-    string model_end;
-    string lit_start;
-    string lit_sep;
-    string lit_end;
-
     class Checker: public _Circumscription {
         friend class Circumscription;
     public:

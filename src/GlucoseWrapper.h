@@ -20,14 +20,17 @@
 
 #include "utils/common.h"
 
+#include "Printer.h"
 #include "Propagator.h"
 
 namespace zuccherino {
     
 class GlucoseWrapper : public Glucose::SimpSolver {
 public:
-    inline GlucoseWrapper() : nTrailPosition(0) { setIncrementalMode(); }
+    GlucoseWrapper();
     GlucoseWrapper(const GlucoseWrapper& init);
+    
+    bool interrupted() const { return asynch_interrupt; }
     
     void parse(gzFile in);
     
@@ -47,7 +50,9 @@ public:
     lbool solveWithBudget();
     
     void copyModel();
-    void printModel() const;
+    void onStart() { printer.onStart(); }
+    void onModel() { printer.onModel(); }
+    void onDone() { printer.onDone(); }
     void learnClauseFromModel();
 
     virtual void cancelUntil(int level);
@@ -68,7 +73,17 @@ protected:
     vec<int> trailPosition;
     int nTrailPosition;
     
+    inline void setProlog(const string& value) { parserProlog.setId(value); }
+    inline void setParser(Parser* p) { parser.set(p); }
+    inline void setParser(char key, Parser* p) { parser.set(key, p); }
+    
 private:
+    Printer printer;
+    ParserSkip parserSkip;
+    ParserProlog parserProlog;
+    ParserClause parserClause;
+    ParserHandler parser;
+    
     vec<Propagator*> propagators;
     vec<Lit> conflictFromPropagators;
     vec<Propagator*> reasonFromPropagators;

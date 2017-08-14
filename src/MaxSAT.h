@@ -23,6 +23,40 @@
 
 namespace zuccherino {
 
+class MaxSAT;
+    
+class MaxSATParserProlog : public Parser {
+public:
+    MaxSATParserProlog(MaxSAT& solver_) : solver(solver_) {}
+    
+    virtual void parseAttach(Glucose::StreamBuffer& in);
+    virtual void parse();
+    virtual void parseDetach();
+
+    MaxSAT& getSolver() { return solver; }
+    bool isValid() const { return valid; }
+    bool isWeighted() const { return weighted; }
+    int64_t getTop() const { return top; }
+
+private:
+    MaxSAT& solver;
+    bool valid;
+    bool weighted;
+    int64_t top;
+};
+
+class MaxSATParserClause : public Parser {
+public:
+    MaxSATParserClause(MaxSATParserProlog& parserProlog_) : parserProlog(parserProlog_) {}
+    
+    virtual void parse();
+    virtual void parseDetach();
+
+private:
+    MaxSATParserProlog& parserProlog;
+    vec<Lit> lits;
+};
+
 class MaxSAT : public GlucoseWrapper {
 public:
     MaxSAT();
@@ -36,10 +70,9 @@ public:
     
     void addWeightedClause(vec<Lit>& lits, int64_t weight);
     
-    void printModel() const;
-
 private:
-    int nInputVars;
+    MaxSATParserProlog parserProlog;
+    MaxSATParserClause parserClause;
     CardinalityConstraintPropagator ccPropagator;
     
     vec<Lit> softLits;
@@ -67,9 +100,7 @@ private:
 
     inline void printLowerBound() const { cout << "o " << lowerBound << endl; }
     inline void printUpperBound() const { cout << "c " << upperBound << " ub" << endl; }
-    inline void printUnsat() const { cout << "s UNSATISFIABLE" << endl; }
     inline void printOptimum() const { cout << "s OPTIMUM FOUND" << endl; }
-    inline void printModelCounter(int count) const { cout << "c Model " << count << endl; }
     
 };
 

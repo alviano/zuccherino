@@ -26,28 +26,6 @@ Glucose::IntOption option_circ_wit("TRACE", "circ-wit", "Number of desired witne
 
 namespace zuccherino {
 
-static int readline(Glucose::StreamBuffer& in, char* buff, unsigned BUFFSIZE) {
-    int count = 0;
-    while(*in != EOF && *in != '\n' && static_cast<unsigned>(count) < BUFFSIZE) { buff[count++] = *in; ++in; }
-    if(static_cast<unsigned>(count) >= BUFFSIZE) cerr << "PARSE ERROR! String " << buff << " is too long!" << endl, exit(3);
-    buff[count] = '\0';
-    return count;
-}
-
-static char* startswith(char*& str, const char* pre) {
-    unsigned len = strlen(pre);
-    if(strncmp(str, pre, len) != 0) return NULL;
-    return str = str + len;
-}
-
-static void pretty_print(const string& str, int count) {
-    if(str.size() == 0) cout << '\n';
-    else {
-        for(unsigned i = 0; i < str.size() - 1; i++) { if(str[i] == '#') cout << count; else cout << str[i]; }
-        if(str[str.size()-1] != '\\') cout << str[str.size()-1] << '\n';
-    }
-}
-
 _Circumscription::_Circumscription() : ccPropagator(*this), wcPropagator(*this, &ccPropagator), spPropagator(NULL) {
 }
 
@@ -71,7 +49,8 @@ Circumscription::~Circumscription() {
 bool Circumscription::interrupt() {
     GlucoseWrapper::interrupt();
     if(model.size() == 0) return false;
-    printModel(1);
+    onModel();
+    onDone();
     return true;
 }
 
@@ -202,6 +181,7 @@ void Circumscription::parse(gzFile in_) {
             if(*in != ' ') cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
             ++in;
             
+            /*
             int count = readline(in, buff, BUFFSIZE);
             char* tmp = buff;
             
@@ -219,6 +199,7 @@ void Circumscription::parse(gzFile in_) {
                 tmp++;
                 addVisible(lit, tmp, count - (tmp - buff));
             }
+             */
         }
         else if(*in == '>') {
             ++in;
@@ -280,29 +261,12 @@ void Circumscription::parse(gzFile in_) {
     if(!pcirc) cerr << "PARSE ERROR! Invalid input: must start with 'p circ'" << endl, exit(3);
 }
 
-void Circumscription::printModel(int count) const {
-    if(!option_print_model) return;
-    
-    if(count == 1) pretty_print(models_start, count);
-    else pretty_print(model_sep, count);
-    pretty_print(model_start, count);
-    for(int i = 0, lits = 1; i < visible.size(); i++) {
-        assert(var(visible[i].lit) < model.size());
-        if(sign(visible[i].lit) ^ (model[var(visible[i].lit)] != l_True)) continue;
-        if(lits > 1) pretty_print(lit_sep, lits);
-        pretty_print(lit_start, lits);
-        cout << visible[i].value;
-        pretty_print(lit_end, lits);
-        lits++;
-    }
-    pretty_print(model_end, count);
-    cout.flush();
-}
-
 lbool Circumscription::solve() {
     assert(decisionLevel() == 0);
     assert(assumptions.size() == 0);
     assert(checker == NULL);
+    
+    onStart();
     
     int count = 0;
     lbool status = l_Undef;
@@ -313,14 +277,7 @@ lbool Circumscription::solve() {
     }
     else status = solve2(count);
     
-    if(status == l_False) {
-        assert(count == 0);
-        pretty_print(models_none, count);
-    }
-    else if(status == l_True) {
-        assert(count > 0);
-        pretty_print(models_end, count);
-    }
+    onDone();
     
     return status;
 }
@@ -575,7 +532,7 @@ void Circumscription::enumerateModels(int& count) {
     if(option_circ_wit == 1) {
         count++;
         copyModel();
-        printModel(count);
+        onModel();
         learnClauseFromModel();
     }
     else {
@@ -591,7 +548,7 @@ void Circumscription::enumerateModels(int& count) {
             count++;
             wit++;
             copyModel();
-            printModel(count);
+            onModel();
             if(wit == option_circ_wit) break;
             if(count == option_n) break;
             if(decisionLevel() == assumptions.size()) break;

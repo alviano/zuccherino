@@ -24,12 +24,54 @@ extern Glucose::BoolOption option_print_model;
 
 namespace zuccherino {
 
-MaxSAT::MaxSAT() : ccPropagator(*this), lowerBound(0), upperBound(INT64_MAX) {
+void MaxSATParserProlog::parseAttach(Glucose::StreamBuffer& in) {
+    Parser::parseAttach(in);
+    valid = false;
+    weighted = false;
+    top = INT64_MAX;
 }
 
-void MaxSAT::interrupt() { 
-    cout << "s UNKNOWN" << endl;
-    if(upperBound != INT64_MAX) printModel();
+void MaxSATParserProlog::parse() {
+    valid = true;
+    if(*in() == 'w') { weighted = true; ++in(); }
+    if(!eagerMatch(in(), "cnf")) cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in()) << endl, exit(3);
+
+    int nInputVars = parseInt(in());
+    parseInt(in());
+    if(weighted) top = parseLong(in());
+    
+    while(solver.nVars() < nInputVars) solver.newVar();
+}
+
+void MaxSATParserProlog::parseDetach() {
+    Parser::parseDetach();
+    if(!valid) cerr << "No valid prolog line (cnf or wcnf)." << endl, exit(3);
+}
+
+void MaxSATParserClause::parse() {
+    if(!parserProlog.isValid()) cerr << "No valid prolog line (cnf or wcnf)." << endl, exit(3);
+    int64_t weight = 1;
+    if(parserProlog.isWeighted()) weight = parseLong(in());
+    Glucose::readClause(in(), parserProlog.getSolver(), lits);
+    if(weight == parserProlog.getTop()) parserProlog.getSolver().addClause_(lits);
+    else parserProlog.getSolver().addWeightedClause(lits, weight);
+}
+
+void MaxSATParserClause::parseDetach() {
+    Parser::parseDetach();
+    vec<Lit> tmp;
+    lits.moveTo(tmp);
+}
+    
+MaxSAT::MaxSAT() : parserProlog(*this), parserClause(parserProlog), ccPropagator(*this), lowerBound(0), upperBound(INT64_MAX) {
+    setParser('p', &parserProlog);
+    setParser(&parserClause);
+}
+
+void MaxSAT::interrupt() {
+    GlucoseWrapper::interrupt();
+    onDone();
+    if(upperBound != INT64_MAX) onModel();
 }
 
 Var MaxSAT::newVar(bool polarity, bool dvar) {
@@ -37,50 +79,8 @@ Var MaxSAT::newVar(bool polarity, bool dvar) {
     return GlucoseWrapper::newVar(polarity, dvar);
 }
 
-void MaxSAT::parse(gzFile in_) {
-    Glucose::StreamBuffer in(in_);
-
-    bool weighted = false;
-    int64_t top = -1;
-    int64_t weight = 1;
-    
-    vec<Lit> lits;
-    int vars = 0;
-    int inClauses = 0;
-    int count = 0;
-    for(;;) {
-        skipWhitespace(in);
-        if(*in == EOF) break;
-        if(*in == 'p') {
-            ++in;
-            if(*in != ' ') cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
-            ++in;
-            if(*in == 'w') { weighted = true; ++in; }
-            
-            if(eagerMatch(in, "cnf")) {
-                vars = parseInt(in);
-                inClauses = parseInt(in);
-                if(weighted && *in != '\n') top = parseLong(in);
-                
-                nInputVars = vars;
-                while(nVars() < nInputVars) newVar();
-            }
-            else {
-                cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
-            }
-        }
-        else if(*in == 'c')
-            skipLine(in);
-        else {
-            count++;
-            if(weighted) weight = parseLong(in);
-            Glucose::readClause(in, *this, lits);
-            if(weight == top) addClause_(lits);
-            else addWeightedClause(lits, weight);
-        }
-    }
-    if(count != inClauses) cerr << "WARNING! DIMACS header mismatch: wrong number of clauses." << endl, exit(3);    
-    
+void MaxSAT::parse(gzFile in) {
+    GlucoseWrapper::parse(in);
     for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
 }
 
@@ -437,6 +437,8 @@ void MaxSAT::preprocess() {
 }
 
 lbool MaxSAT::solve() {
+    onStart();
+    
     preprocess();
     
     lbool status;
@@ -447,6 +449,8 @@ lbool MaxSAT::solve() {
     
     int64_t limit = computeNextLimit(INT64_MAX);
     for(;;) {
+        if(interrupted()) return l_Undef;
+        
         hardening();
         setAssumptions(limit);
         if(lowerBound == upperBound) break;
@@ -479,14 +483,15 @@ lbool MaxSAT::solve() {
     }
     assert(lowerBound == upperBound);
 
-    if(upperBound == INT64_MAX) { printUnsat(); return l_False; }
+    if(upperBound == INT64_MAX) { onDone(); return l_False; }
     
     assert(softLits.size() == 0);
     
     printLowerBound();
     printOptimum();
-    if(option_n == 1) printModel();
+    if(option_n == 1) onModel();
     else enumerateModels();
+    onDone();
     return l_True;
 }
 
@@ -497,21 +502,12 @@ void MaxSAT::enumerateModels() {
     int count = 0;
     while(solveWithBudget() == l_True) {
         count++;
-        printModelCounter(count);
         copyModel();
-        printModel();
+        onModel();
         if(count == option_n) break;
         if(decisionLevel() == 0) break;
         learnClauseFromModel();
     }
-}
-
-void MaxSAT::printModel() const {
-    if(!option_print_model) return;
-    assert(model.size() >= nInputVars);
-    cout << "v";
-    for(int i = 0; i < nInputVars; i++) cout << " " << (model[i] == l_False ? "-" : "") << (i+1);
-    cout << endl;
 }
 
 }

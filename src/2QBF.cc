@@ -341,7 +341,7 @@ void QBF::shrinkConflict() {
 void QBF::enumerateModels(int& count) {
     count++;
     copyModel();
-    printModel();
+    onModel();
     learnClauseFromModel();
 }
 

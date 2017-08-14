@@ -20,13 +20,21 @@
 #include <core/Dimacs.h>
 
 extern Glucose::IntOption option_n;
-extern Glucose::BoolOption option_print_model;
 
 namespace zuccherino {
 
 #define trace_(level, msg) trace(solver, level, (id != "" ? "[" + id + "]": "") << msg)
 
-GlucoseWrapper::GlucoseWrapper(const GlucoseWrapper& init) : Glucose::SimpSolver(init), nTrailPosition(init.nTrailPosition), id(init.id) {
+GlucoseWrapper::GlucoseWrapper() : nTrailPosition(0), printer(*this), parserClause(*this), parser(*this) { 
+    setIncrementalMode();
+    parserProlog.setId("cnf");
+    parser.set('v', &printer);
+    parser.set('p', &parserProlog);
+    parser.set('c', &parserSkip);
+    parser.set(&parserClause);
+}
+
+GlucoseWrapper::GlucoseWrapper(const GlucoseWrapper& init) : Glucose::SimpSolver(init), nTrailPosition(init.nTrailPosition), printer(init.printer), parserSkip(init.parserSkip), parserProlog(init.parserProlog), parserClause(init.parserClause), parser(init.parser), id(init.id) {
     assert(decisionLevel() == 0);
     init.trailPosition.copyTo(trailPosition);
 //    for(int i = 0; i < init.propagators.size(); i++) propagators.push(init.propagators[i]->clone());
@@ -34,24 +42,9 @@ GlucoseWrapper::GlucoseWrapper(const GlucoseWrapper& init) : Glucose::SimpSolver
     reasonFromPropagators.growTo(init.reasonFromPropagators.size(), NULL);
 }
 
-void GlucoseWrapper::parse(gzFile in_) {
-    Glucose::StreamBuffer in(in_);
-
-    vec<Lit> lits;
-    for(;;) {
-        skipWhitespace(in);
-        if(*in == EOF) break;
-        if(*in == 'p') {
-            if(eagerMatch(in, "p cnf")) skipLine(in);
-            else cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
-        }
-        else if(*in == 'c') skipLine(in);
-        else {
-            Glucose::readClause(in, *this, lits);
-            this->addClause(lits); 
-        }
-    }
-    for(int i = 0; i < nVars(); i++) setFrozen(i, true);
+void GlucoseWrapper::parse(gzFile in) {
+    parser.parse(in);
+//    for(int i = 0; i < nVars(); i++) setFrozen(i, true);
 }
 
 Var GlucoseWrapper::newVar(bool polarity, bool dvar) {
@@ -66,6 +59,7 @@ void GlucoseWrapper::onNewDecisionLevel(Lit lit) {
 
 lbool GlucoseWrapper::solve() {
     cancelUntil(0);
+    onStart();
 
     lbool status = l_Undef;
     lbool ret = l_False;
@@ -74,17 +68,16 @@ lbool GlucoseWrapper::solve() {
         status = solveWithBudget();
         if(status != l_True) break;
         
-        if(++count == 1) cout << "s SATISFIABLE" << endl;
-        
-        cout << "c Model " << count << endl;
         copyModel();
-        printModel();
+        onModel();
         ret = l_True;
-        if(count == option_n) break;
+        if(++count == option_n) break;
         if(decisionLevel() == 0) break;
         learnClauseFromModel();
     }
-    if(ret == l_False) cout << "s UNSATISFIABLE" << endl;
+    
+    onDone();
+    
     return ret;
 }
 
@@ -108,15 +101,6 @@ void GlucoseWrapper::copyModel() {
     model.growTo(nVars());
     for (int i = 0; i < nVars(); i++) model[i] = value(i);
     Glucose::SimpSolver::extendModel();
-}
-
-void GlucoseWrapper::printModel() const {
-    if(!option_print_model) return;
-    assert(model.size() >= nVars());
-    cout << "v";
-    for(int i = 0; i < nVars(); i++)
-        cout << " " << (model[i] == l_False ? "-" : "") << (i+1);
-    cout << endl;
 }
 
 void GlucoseWrapper::learnClauseFromModel() {
