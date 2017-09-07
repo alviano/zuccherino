@@ -41,6 +41,7 @@ void MaxSATParserProlog::parse() {
     if(weighted) top = parseLong(in());
     
     while(solver.nVars() < nInputVars) solver.newVar();
+    solver.setLastVisibleVar(nInputVars);
 }
 
 void MaxSATParserProlog::parseDetach() {
