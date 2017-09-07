@@ -21,6 +21,8 @@
 #include "GlucoseWrapper.h"
 #include "CardinalityConstraint.h"
 
+#include <vector>
+
 namespace zuccherino {
 
 class MaxSAT;
@@ -70,7 +72,7 @@ public:
     
     void addWeightedClause(vec<Lit>& lits, int64_t weight);
     
-private:
+protected:
     MaxSATParserProlog parserProlog;
     MaxSATParserClause parserClause;
     CardinalityConstraintPropagator ccPropagator;
@@ -102,6 +104,35 @@ private:
     inline void printUpperBound() const { cout << "c " << upperBound << " ub" << endl; }
     inline void printOptimum() const { cout << "s OPTIMUM FOUND" << endl; }
     
+};
+
+class MaxSATExchange : public MaxSAT {
+public:
+    class Listener {
+    public:
+        virtual void onNewLowerBound(int64_t value) = 0;
+        virtual void onNewUpperBound(int64_t value) = 0;
+        virtual void onNewClause(const std::vector<int>& clause) = 0;
+        virtual void onNewEqual(const std::vector<int>& lits, int64_t bound) = 0;
+    };
+
+    MaxSATExchange(const std::vector<std::vector<int> >& clauses, const std::vector<int64_t>& weights, int64_t top);
+    
+    void setListener(Listener* value) { listener = value; }
+    
+    void addLevelZeroLiteral(int lit) { cancelUntil(0); addClause(intToLit(lit)); }
+    
+    void start(const std::vector<int>& unsat_core, int64_t upperBound);
+    
+private:
+    Listener* listener;
+    
+    void processConflict(int64_t weight);
+    lbool continueSearch();
+    
+    void hardening();
+    void updateUpperBound();
+    void addToLowerBound(int64_t value);
 };
 
 }

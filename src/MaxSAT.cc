@@ -511,4 +511,169 @@ void MaxSAT::enumerateModels() {
     }
 }
 
+MaxSATExchange::MaxSATExchange(const std::vector<std::vector<int> >& clauses, const std::vector<int64_t>& weights, int64_t top) : listener(NULL) {
+    assert(clauses.size() == weights.size());
+    vec<Lit> lits;
+    for(unsigned i = 0; i < clauses.size(); i++) {
+        const std::vector<int>& clause = clauses[i];
+        assert(lits.size() == 0);
+        for(unsigned j = 0; j < clause.size(); j++) {
+            Var var = clause[j] > 0 ? clause[j] - 1 : -clause[j] - 1;
+            while(nVars() <= var) newVar();
+            lits.push(intToLit(clause[j]));
+        }
+        if(weights[i] == top) addClause_(lits);
+        else addWeightedClause(lits, weights[i]);
+        lits.clear();
+    }
+    for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
+}
+
+void MaxSATExchange::start(const std::vector<int>& core, int64_t upperBound_) {
+    assert(core.size() > 0);
+    conflict.clear();
+    for(unsigned i = 0; i < core.size(); i++) conflict.push(intToLit(-core[i]));
+    
+    if(upperBound_ < upperBound) upperBound = upperBound_;
+    
+    int64_t w = computeConflictWeight();
+    addToLowerBound(w);
+    processConflict(w);
+    continueSearch();
+}
+
+void MaxSATExchange::processConflict(int64_t weight) {
+    cancelUntil(0);
+    trace(maxsat, 10, "Use algorithm one");
+
+    vec<Lit> lits;
+    std::vector<int> vlits;
+    int bound = conflict.size() - 1;
+    while(conflict.size() > 0) {
+        weights[var(conflict.last())] -= weight;
+        lits.push(~conflict.last());
+        conflict.pop();
+    }
+    assert(conflict.size() == 0);
+    for(int i = 0; i < bound; i++) {
+        newVar();
+        if(i != 0) {
+            addClause(~softLits.last(), mkLit(nVars()-1));
+            if(listener != NULL) {
+                vlits.push_back(litToInt(~softLits.last()));
+                vlits.push_back(litToInt(mkLit(nVars()-1)));
+                listener->onNewClause(vlits);
+                vlits.clear();
+            }
+            
+        }
+        setFrozen(nVars()-1, true);
+        weights.last() = weight;
+        softLits.push(mkLit(nVars()-1));
+        lits.push(~mkLit(nVars()-1));
+    }
+ 
+    if(listener != NULL && bound > 0) {
+        for(int i = 0; i < lits.size(); i++) vlits.push_back(litToInt(lits[i]));
+        listener->onNewEqual(vlits, bound);
+    }
+   
+    ccPropagator.addGreaterEqual(lits, bound);
+}
+
+lbool MaxSATExchange::continueSearch() {
+    lbool status;
+
+    int64_t limit = computeNextLimit(INT64_MAX);
+    for(;;) {
+        if(interrupted()) return l_Undef;
+        
+        hardening();
+        setAssumptions(limit);
+        if(lowerBound == upperBound) break;
+        conflicts_bkp = conflicts;
+        status = solveWithBudget();
+        if(status == l_True) { 
+            updateUpperBound();
+            limit = computeNextLimit(limit);
+        }
+        else {
+            assert(status == l_False);
+            trace(maxsat, 2, "UNSAT! Conflict of size " << conflict.size());
+            trace(maxsat, 100, "Conflict: " << conflict);
+            
+            if(conflict.size() == 0) { 
+                lowerBound = upperBound;
+                if(listener != NULL) listener->onNewLowerBound(lowerBound);
+                limit = 1;
+                continue;
+            }
+
+            assert_msg(computeConflictWeight() == limit, "computeConflictWeight()=" << computeConflictWeight() << "; limit=" << limit << "; conflict=" << conflict);
+            shrinkConflict(limit);
+            trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
+            assert(decisionLevel() == 0);
+            
+            int64_t w = computeConflictWeight();
+            assert(w == limit);
+            addToLowerBound(w);
+            
+            if(listener != NULL) {
+                std::vector<int> vlits;
+                for(int i = 0; i < conflict.size(); i++) vlits.push_back(litToInt(conflict[i]));
+                listener->onNewClause(vlits);
+            }
+            
+            // check for uniform weights
+            for(int i = 0; i < conflict.size(); i++) {
+                if(weights[var(conflict[i])] != w) return l_Undef;
+            }
+            
+            assert(conflict.size() > 0);
+            trace(maxsat, 4, "Analyze conflict of size " << conflict.size() << " and weight " << w);
+            processConflict(w);
+        }
+    }
+    assert(lowerBound == upperBound);
+
+    if(upperBound == INT64_MAX) return l_False;
+    
+    assert(softLits.size() == 0);
+    
+    return l_True;
+}
+
+void MaxSATExchange::hardening() {
+    cancelUntil(0);
+    int j = 0;
+    for(int i = 0; i < softLits.size(); i++) {
+        int64_t diff = weights[var(softLits[i])] + lowerBound - upperBound;
+        if(option_n == 1 ? diff >= 0 : diff > 0) {
+            addClause(softLits[i]);
+            if(listener != NULL) { std::vector<int> tmp; tmp.push_back(litToInt(softLits[i])); listener->onNewClause(tmp); }
+            trace(maxsat, 30, "Hardening of " << softLits[i] << " of weight " << weights[var(softLits[i])]);
+            weights[var(softLits[i])] = 0;
+            continue;
+        }
+        softLits[j++] = softLits[i];
+    }
+    softLits.shrink_(softLits.size()-j);
+}
+
+void MaxSATExchange::addToLowerBound(int64_t value) {
+    assert(value > 0);
+    lowerBound += value;
+    if(listener != NULL) listener->onNewLowerBound(lowerBound);
+}
+
+void MaxSATExchange::updateUpperBound() {
+    int64_t sum = lowerBound;
+    for(int i = 0; i < softLits.size(); i++) if(value(softLits[i]) == l_False) sum += weights[var(softLits[i])];
+    if(sum < upperBound) {
+        upperBound = sum;
+        if(listener != NULL) listener->onNewUpperBound(upperBound);
+        copyModel();
+    }
+}
+
 }
