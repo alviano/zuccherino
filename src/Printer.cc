@@ -25,7 +25,7 @@ namespace zuccherino {
 
 #define BUFFSIZE 1048576
     
-Printer::Printer(GlucoseWrapper& solver_) : solver(solver_), buff(NULL), models_unknown("s UNKNOWN\\n"), models_none("s UNSATISFIABLE\\n"), models_start("s SATISFIABLE\\n"), models_end(""), model_start("c Model #\\nv "), model_sep(""), model_end("\\n"), lit_start(""), lit_sep(" "), lit_end("") {
+Printer::Printer(GlucoseWrapper& solver_) : solver(solver_), buff(NULL), lastVisibleVar(INT_MAX), models_unknown("s UNKNOWN\\n"), models_none("s UNSATISFIABLE\\n"), models_start("s SATISFIABLE\\n"), models_end(""), model_start("c Model #\\nv "), model_sep(""), model_end("\\n"), lit_start(""), lit_sep(" "), lit_end("") {
 }
 
 Printer::~Printer() {
@@ -89,6 +89,7 @@ void Printer::onModel() {
     pretty_print(model_start, modelCount);
     if(visible.size() == 0) {
         for(int i = 0; i < solver.model.size(); i++) {
+            if(i > lastVisibleVar) break;
             if(i > 0) pretty_print(lit_sep, i+1);
             pretty_print(lit_start, i+1);
             if(solver.model[i] == l_False) cout << '-';

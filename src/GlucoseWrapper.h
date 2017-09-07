@@ -69,6 +69,9 @@ public:
     
     inline void setId(const string& value) { id = value; }
     
+    inline void addVisible(Lit lit, const char* str, int len) { printer.addVisible(lit, str, len); }
+    inline void setLastVisibleVar(int value) { printer.setLastVisibleVar(value); }
+    
 protected:
     vec<int> trailPosition;
     int nTrailPosition;

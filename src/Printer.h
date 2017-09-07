@@ -34,6 +34,7 @@ public:
     virtual void parseDetach();
     
     void addVisible(Lit lit, const char* str, int len);
+    inline void setLastVisibleVar(int value) { lastVisibleVar = value; }
     void onStart();
     void onModel();
     void onDone();
@@ -43,6 +44,8 @@ private:
     char* buff;
     
     int modelCount;
+    
+    int lastVisibleVar;
     
     string models_unknown;
     string models_none;
