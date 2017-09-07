@@ -21,6 +21,9 @@
 #include "GlucoseWrapper.h"
 #include "CardinalityConstraint.h"
 
+#include <preprocessorinterface.hpp>
+#include <vector>
+
 namespace zuccherino {
 
 class MaxSAT;
@@ -48,13 +51,30 @@ private:
 class MaxSATParserClause : public Parser {
 public:
     MaxSATParserClause(MaxSATParserProlog& parserProlog_) : parserProlog(parserProlog_) {}
-    
     virtual void parse();
     virtual void parseDetach();
 
 private:
     MaxSATParserProlog& parserProlog;
     vec<Lit> lits;
+};
+
+class MaxSATParserClauseForPreprocessing : public Parser {
+public:
+    MaxSATParserClauseForPreprocessing(MaxSATParserProlog& parserProlog_) : parserProlog(parserProlog_) {}
+    virtual ~MaxSATParserClauseForPreprocessing() { delete preprocessor; }
+    
+    virtual void parse();
+    virtual void parseDetach();
+
+    void reconstructModel();
+
+private:
+    MaxSATParserProlog& parserProlog;
+    maxPreprocessor::PreprocessorInterface* preprocessor;
+    vec<Lit> lits;
+    std::vector<std::vector<int> > clauses;
+    std::vector<uint64_t> weights;
 };
 
 class MaxSAT : public GlucoseWrapper {
@@ -68,11 +88,13 @@ public:
     void parse(gzFile in);
     lbool solve();
     
+    void onModel();
+    
     void addWeightedClause(vec<Lit>& lits, int64_t weight);
     
 private:
     MaxSATParserProlog parserProlog;
-    MaxSATParserClause parserClause;
+    MaxSATParserClauseForPreprocessing parserClause;
     CardinalityConstraintPropagator ccPropagator;
     
     vec<Lit> softLits;

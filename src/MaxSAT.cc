@@ -50,8 +50,7 @@ void MaxSATParserProlog::parseDetach() {
 
 void MaxSATParserClause::parse() {
     if(!parserProlog.isValid()) cerr << "No valid prolog line (cnf or wcnf)." << endl, exit(3);
-    int64_t weight = 1;
-    if(parserProlog.isWeighted()) weight = parseLong(in());
+    int64_t weight = parserProlog.isWeighted() ? parseLong(in()) : 1;
     Glucose::readClause(in(), parserProlog.getSolver(), lits);
     if(weight == parserProlog.getTop()) parserProlog.getSolver().addClause_(lits);
     else parserProlog.getSolver().addWeightedClause(lits, weight);
@@ -61,6 +60,55 @@ void MaxSATParserClause::parseDetach() {
     Parser::parseDetach();
     vec<Lit> tmp;
     lits.moveTo(tmp);
+}
+
+void MaxSATParserClauseForPreprocessing::parse() {
+    if(!parserProlog.isValid()) cerr << "No valid prolog line (cnf or wcnf)." << endl, exit(3);
+    
+    weights.push_back(parserProlog.isWeighted() ? parseLong(in()) : 1);
+    
+    Glucose::readClause(in(), parserProlog.getSolver(), lits);
+    clauses.push_back(std::vector<int>());
+    for(int i = 0; i < lits.size(); i++) clauses.back().push_back(litToInt(lits[i]));
+}
+
+void MaxSATParserClauseForPreprocessing::parseDetach() {
+    parserProlog.getSolver().setLastVisibleVar(parserProlog.getSolver().nVars()-1);
+    
+    preprocessor = new maxPreprocessor::PreprocessorInterface(clauses, weights, parserProlog.getTop());
+    preprocessor->preprocess("[bu]#[buvsrgc]");
+    
+    clauses.clear();
+    weights.clear();
+    std::vector<int> labels;
+    preprocessor->getInstance(clauses, weights, labels);
+    assert(clauses.size() == weights.size());
+    
+    for(unsigned i = 0; i < clauses.size(); i++) {
+        lits.clear();
+        for(unsigned j = 0; j < clauses[i].size(); j++) {
+            while(parserProlog.getSolver().nVars() <= fabs(clauses[i][j])) parserProlog.getSolver().newVar();
+            lits.push(intToLit(clauses[i][j]));
+        }
+        if(weights[i] == preprocessor->getTopWeight()) parserProlog.getSolver().addClause_(lits);
+        else parserProlog.getSolver().addWeightedClause(lits, weights[i]);
+    }
+    
+    Parser::parseDetach();
+    { vec<Lit> tmp; lits.moveTo(tmp); }
+    { std::vector<std::vector<int> > tmp; clauses.swap(tmp); }
+    { std::vector<uint64_t> tmp; weights.swap(tmp); }
+}
+
+void MaxSATParserClauseForPreprocessing::reconstructModel() {
+    GlucoseWrapper& solver = parserProlog.getSolver();
+    std::vector<int> lits;
+    for(int i = 0; i < solver.nVars(); i++) lits.push_back(solver.model[i] == l_True ? i+1 : -i-1);
+    std::vector<int> model = preprocessor->reconstruct(lits);
+    for(unsigned i = 0; i < model.size(); i++) {
+        if(model[i] > 0) solver.model[model[i]-1] = l_True;
+        else solver.model[-model[i]-1] = l_False;
+    }
 }
     
 MaxSAT::MaxSAT() : parserProlog(*this), parserClause(parserProlog), ccPropagator(*this), lowerBound(0), upperBound(INT64_MAX) {
@@ -79,8 +127,14 @@ Var MaxSAT::newVar(bool polarity, bool dvar) {
     return GlucoseWrapper::newVar(polarity, dvar);
 }
 
+void MaxSAT::onModel() { 
+    parserClause.reconstructModel();
+    GlucoseWrapper::onModel();
+}
+
 void MaxSAT::parse(gzFile in) {
     GlucoseWrapper::parse(in);
+    
     for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
 }
 
