@@ -57,13 +57,53 @@ public:
     void addVisible(Lit lit, const char* str, int len);
     void endProgram(int numberOfVariables);
     
-    void parse(gzFile in);
+//    void parse(gzFile in);
     
     lbool solve();
     
     bool hasQuery() const { return query != lit_Undef; }
     
 private:
+    class QueryParser : public Parser {
+    public:
+        QueryParser(Circumscription& solver_) : solver(solver_) {}
+        virtual void parse() { solver.setQuery(parseLit(in(), solver)); }
+    
+    private:
+        Circumscription& solver;
+    };
+    QueryParser queryParser;
+    
+    class WeakParser : public Parser {
+    public:
+        WeakParser(Circumscription& solver_) : solver(solver_) {}
+        virtual void parse() { solver.addWeakLit(parseLit(in(), solver)); }
+    
+    private:
+        Circumscription& solver;
+    };
+    WeakParser weakParser;
+
+    class GroupParser : public Parser {
+    public:
+        GroupParser(Circumscription& solver_) : solver(solver_) {}
+        virtual void parse() { solver.addGroupLit(parseLit(in(), solver)); }
+    
+    private:
+        Circumscription& solver;
+    };
+    GroupParser groupParser;
+
+    class EndParser : public Parser {
+    public:
+        EndParser(Circumscription& solver_) : solver(solver_) {}
+        virtual void parse() { solver.endProgram(parseInt(in())); }
+    
+    private:
+        Circumscription& solver;
+    };
+    EndParser endParser;
+
     class Checker: public _Circumscription {
         friend class Circumscription;
     public:

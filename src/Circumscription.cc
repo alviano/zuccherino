@@ -38,7 +38,12 @@ _Circumscription::~_Circumscription() {
     for(int i = 0; i < hccs.size(); i++) delete hccs[i];
 }
 
-Circumscription::Circumscription() : _Circumscription(), checker(NULL), query(lit_Undef) {
+Circumscription::Circumscription() : _Circumscription(), queryParser(*this), weakParser(*this), groupParser(*this), endParser(*this), checker(NULL), query(lit_Undef) {
+    setProlog("circ");
+    setParser('q', &queryParser);
+    setParser('w', &weakParser);
+    setParser('g', &groupParser);
+    setParser('n', &endParser);
 }
 
 Circumscription::~Circumscription() {
@@ -124,141 +129,6 @@ void Circumscription::endProgram(int numberOfVariables) {
     for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
     if(option_n != 1) for(int i = 0; i < visible.size(); i++) setFrozen(var(visible[i].lit), true);
     _Circumscription::endProgram(numberOfVariables);
-}
-
-void Circumscription::parse(gzFile in_) {
-    Glucose::StreamBuffer in(in_);
-
-    const unsigned BUFFSIZE = 1048576;
-    char* buff = new char[BUFFSIZE];
-    
-    bool pcirc = false;
-    
-    int64_t weight;
-    vec<int64_t> weights;
-    
-    vec<Lit> lits;
-    vec<Var> rec;
-    vec<Var> rec2;
-    
-    for(;;) {
-        skipWhitespace(in);
-        if(*in == EOF) break;
-        if(*in == 'p') {
-            ++in;
-            if(*in != ' ') cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
-            ++in;
-            
-            if(!eagerMatch(in, "circ")) cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
-            
-            skipLine(in);
-            pcirc = true;
-        }
-        else if(*in == 'c') skipLine(in);
-        else if(*in == 'q') {
-            ++in;
-            
-            if(query != lit_Undef) cerr << "PARSE ERROR! Query literal already set: " << query << endl, exit(3);
-            
-            Lit lit = parseLit(in, *this);
-            if(lit == lit_Undef) cerr << "PARSE ERROR! Invalid query literal: " << lit << endl, exit(3);
-            setQuery(lit);
-        }
-        else if(*in == 'w') {
-            ++in;
-            Lit lit = parseLit(in, *this);
-            if(lit == lit_Undef || data.has(lit) || data.has(~lit)) cerr << "PARSE ERROR! Invalid weak literal: " << lit << endl, exit(3);
-            addWeakLit(lit);
-        }
-        else if(*in == 'g') {
-            ++in;
-            Lit lit = parseLit(in, *this);
-            if(lit == lit_Undef || data.has(lit) || data.has(~lit)) cerr << "PARSE ERROR! Invalid group-by literal: " << lit << endl, exit(3);
-            addGroupLit(lit);
-        }
-        else if(*in == 'v') {
-            ++in;
-            if(*in != ' ') cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
-            ++in;
-            
-            /*
-            int count = readline(in, buff, BUFFSIZE);
-            char* tmp = buff;
-            
-            if(startswith(tmp, "models none:")) models_none = string(tmp);
-            else if(startswith(tmp, "models start:")) models_start = string(tmp);
-            else if(startswith(tmp, "models end:")) models_end = string(tmp);
-            else if(startswith(tmp, "model start:")) model_start = string(tmp);
-            else if(startswith(tmp, "model sep:")) model_sep = string(tmp);
-            else if(startswith(tmp, "model end:")) model_end = string(tmp);
-            else if(startswith(tmp, "lit start:")) lit_start = string(tmp);
-            else if(startswith(tmp, "lit sep:")) lit_sep = string(tmp);
-            else if(startswith(tmp, "lit end:")) lit_end = string(tmp);
-            else {
-                Lit lit = parseLit(tmp, *this);
-                tmp++;
-                addVisible(lit, tmp, count - (tmp - buff));
-            }
-             */
-        }
-        else if(*in == '>') {
-            ++in;
-            if(*in != '=') cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
-            ++in;
-            
-            Glucose::readClause(in, *this, lits);
-            for(int i = 0; i < lits.size(); i++) weights.push(parseLong(in));
-            weight = parseLong(in);
-            if(!addGreaterEqual(lits, weights, weight)) return;
-        }
-        else if(*in == '=') {
-            ++in;
-            
-            Glucose::readClause(in, *this, lits);
-            for(int i = 0; i < lits.size(); i++) weights.push(parseLong(in));
-            weight = parseLong(in);
-            if(!addEqual(lits, weights, weight)) return;
-        }
-        else if(*in == 's') {
-            ++in;
-            
-            Glucose::readClause(in, *this, lits);
-            if(lits.size() < 2) cerr << "PARSE ERROR! Expected two or more literals: " << static_cast<char>(*in) << endl, exit(3);
-            for(int i = 2; i < lits.size(); i++) rec.push(var(lits[i]));
-            
-            addSP(var(lits[0]), lits[1], rec);
-        }
-        else if(*in == 'h') {
-            ++in;
-            
-            int id = parseInt(in);
-            if(id < 0) cerr << "PARSE ERROR! Id of HCC must be nonnegative: " << static_cast<char>(*in) << endl, exit(3);
-            
-            Glucose::readClause(in, *this, lits);
-            if(lits.size() == 0) cerr << "PARSE ERROR! Expected one or more head atoms: " << static_cast<char>(*in) << endl, exit(3);
-            for(int i = 0; i < lits.size(); i++) rec.push(var(lits[i]));
-            
-            Lit body = parseLit(in, *this);
-            
-            Glucose::readClause(in, *this, lits);
-            for(int i = 0; i < lits.size(); i++) rec2.push(var(lits[i]));
-
-            addHCC(id, rec, body, rec2);
-        }
-        else if(*in == 'n') {
-            ++in;
-            int n = parseInt(in);
-            endProgram(n);
-        }
-        else {
-            Glucose::readClause(in, *this, lits);
-            if(!addClause_(lits)) break;
-        }
-    }
-    
-    delete[] buff;
-    
-    if(!pcirc) cerr << "PARSE ERROR! Invalid input: must start with 'p circ'" << endl, exit(3);
 }
 
 lbool Circumscription::solve() {
