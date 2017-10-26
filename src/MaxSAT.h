@@ -122,7 +122,9 @@ public:
     
     void addLevelZeroLiteral(int lit) { cancelUntil(0); addClause(intToLit(lit)); }
     
-    void start(const std::vector<int>& unsat_core, int64_t upperBound);
+    void start(const std::vector<int>& unsat_core, int64_t lowerBound, int64_t upperBound);
+    
+    int64_t getWeightOf(int lit) { return weights[var(intToLit(lit))]; }
     
 private:
     Listener* listener;

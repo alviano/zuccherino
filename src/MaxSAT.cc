@@ -529,11 +529,12 @@ MaxSATExchange::MaxSATExchange(const std::vector<std::vector<int> >& clauses, co
     for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
 }
 
-void MaxSATExchange::start(const std::vector<int>& core, int64_t upperBound_) {
+void MaxSATExchange::start(const std::vector<int>& core, int64_t lowerBound_, int64_t upperBound_) {
     assert(core.size() > 0);
     conflict.clear();
-    for(unsigned i = 0; i < core.size(); i++) conflict.push(intToLit(-core[i]));
+    for(unsigned i = 0; i < core.size(); i++) conflict.push(intToLit(core[i]));
     
+    if(lowerBound_ > lowerBound) lowerBound = lowerBound_;
     if(upperBound_ < upperBound) upperBound = upperBound_;
     
     int64_t w = computeConflictWeight();
@@ -616,7 +617,6 @@ lbool MaxSATExchange::continueSearch() {
             
             int64_t w = computeConflictWeight();
             assert(w == limit);
-            addToLowerBound(w);
             
             if(listener != NULL) {
                 std::vector<int> vlits;
@@ -631,6 +631,7 @@ lbool MaxSATExchange::continueSearch() {
             
             assert(conflict.size() > 0);
             trace(maxsat, 4, "Analyze conflict of size " << conflict.size() << " and weight " << w);
+            addToLowerBound(w);
             processConflict(w);
         }
     }
@@ -648,7 +649,7 @@ void MaxSATExchange::hardening() {
     int j = 0;
     for(int i = 0; i < softLits.size(); i++) {
         int64_t diff = weights[var(softLits[i])] + lowerBound - upperBound;
-        if(option_n == 1 ? diff >= 0 : diff > 0) {
+        if(diff > 0) {
             addClause(softLits[i]);
             if(listener != NULL) { std::vector<int> tmp; tmp.push_back(litToInt(softLits[i])); listener->onNewClause(tmp); }
             trace(maxsat, 30, "Hardening of " << softLits[i] << " of weight " << weights[var(softLits[i])]);
