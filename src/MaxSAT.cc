@@ -529,10 +529,10 @@ MaxSATExchange::MaxSATExchange(const std::vector<std::vector<int> >& clauses, co
     for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
 }
 
-void MaxSATExchange::start(const std::vector<int>& core, int64_t lowerBound_, int64_t upperBound_) {
-    assert(core.size() > 0);
+void MaxSATExchange::start(const std::vector<int>& conflict_, int64_t lowerBound_, int64_t upperBound_) {
+    assert(conflict_.size() > 0);
     conflict.clear();
-    for(unsigned i = 0; i < core.size(); i++) conflict.push(intToLit(core[i]));
+    for(unsigned i = 0; i < conflict_.size(); i++) conflict.push(intToLit(core[i]));
     
     if(lowerBound_ > lowerBound) lowerBound = lowerBound_;
     if(upperBound_ < upperBound) upperBound = upperBound_;
