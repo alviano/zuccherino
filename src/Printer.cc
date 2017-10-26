@@ -19,6 +19,7 @@
 
 #include "GlucoseWrapper.h"
 
+extern Glucose::IntOption option_n;
 extern Glucose::BoolOption option_print_model;
 
 namespace zuccherino {
@@ -54,6 +55,7 @@ void Printer::parse() {
     else if(startswith(tmp, "lit start:")) lit_start = string(tmp);
     else if(startswith(tmp, "lit sep:")) lit_sep = string(tmp);
     else if(startswith(tmp, "lit end:")) lit_end = string(tmp);
+    else if(startswith(tmp, "var last:")) setLastVisibleVar(stoi(string(tmp)));
     else {
         Lit lit = parseLit(tmp, solver);
         tmp++;
@@ -74,6 +76,7 @@ void Printer::addVisible(Lit lit, const char* str, int len) {
     visible.last().lit = lit;
     visible.last().value = new char[len+1];
     strcpy(visible.last().value, str);
+    if(option_n != 1) solver.setFrozen(var(lit), true);
 }
 
 void Printer::onStart() {
@@ -89,7 +92,7 @@ void Printer::onModel() {
     pretty_print(model_start, modelCount);
     if(visible.size() == 0) {
         for(int i = 0; i < solver.model.size(); i++) {
-            if(i > lastVisibleVar) break;
+            if(i >= lastVisibleVar) break;
             if(i > 0) pretty_print(lit_sep, i+1);
             pretty_print(lit_start, i+1);
             if(solver.model[i] == l_False) cout << '-';

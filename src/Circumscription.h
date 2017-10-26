@@ -54,7 +54,6 @@ public:
     void setQuery(Lit lit);
     void addGroupLit(Lit lit);
     void addWeakLit(Lit lit);
-    void addVisible(Lit lit, const char* str, int len);
     void endProgram(int numberOfVariables);
     
 //    void parse(gzFile in);
@@ -112,6 +111,27 @@ private:
     };
     Checker* checker;
     
+    class MHS : public GlucoseWrapper {
+    public:
+        MHS(const vec<Lit>& objLits);
+        void addSet(const vec<Lit>& lits);
+        
+        lbool compute(vec<Lit>& in, vec<Lit>& out, bool& withConflict);
+        void getConflict(vec<Lit>& lits);
+        
+    private:
+        struct LitData : LitDataBase {
+            inline LitData() : last(lit_Undef) {}
+            Lit last;
+        };
+        Data<VarDataBase, LitData> data;
+        inline Lit& last(Lit lit) { return data(lit).last; }
+        inline Lit last(Lit lit) const { return data(lit).last; }
+        
+        vec<Lit> objLits;
+        Lit verum;
+    };
+    
     struct LitData : LitDataBase {
         inline LitData() : group(false), weak(false), soft(false) {}
         int group:1;
@@ -131,12 +151,6 @@ private:
     vec<Lit> weakLits;
     vec<Lit> softLits;
     
-    struct VisibleData {
-        Lit lit;
-        char* value;
-    };
-    vec<VisibleData> visible;
-    
     void addToLowerBound();
     void updateUpperBound();
     
@@ -151,11 +165,15 @@ private:
     lbool check();
     void learnClauseFromAssumptions();
     void learnClauseFromModel();
+    void learnClauseFromAssignment(vec<Lit>& lits);
     void learnClauseFromCounterModel();
     
     lbool solveWithoutChecker(int& count);
     lbool solve1(int& count);
     lbool solve2(int& count);
+    lbool solve3(int& count);
+    lbool solve4(int& count);
+    lbool solve5(int& count);
     lbool processConflictsUntilModel(int& conflicts);
 };
 

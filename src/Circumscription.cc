@@ -47,7 +47,6 @@ Circumscription::Circumscription() : _Circumscription(), queryParser(*this), wea
 }
 
 Circumscription::~Circumscription() {
-    for(int i = 0; i < visible.size(); i++) delete[] visible[i].value;
     delete checker;
 }
 
@@ -87,15 +86,6 @@ void Circumscription::addWeakLit(Lit lit) {
     softLits.push(lit);
 }
 
-void Circumscription::addVisible(Lit lit, const char* str, int len) {
-    assert(len >= 0);
-    assert(static_cast<int>(strlen(str)) <= len);
-    visible.push();
-    visible.last().lit = lit;
-    visible.last().value = new char[len+1];
-    strcpy(visible.last().value, str);
-}
-
 void _Circumscription::addSP(Var atom, Lit body, vec<Var>& rec) {
     if(spPropagator == NULL) spPropagator = new SourcePointers(*this);
     spPropagator->add(atom, body, rec);
@@ -127,7 +117,6 @@ void Circumscription::endProgram(int numberOfVariables) {
     }
     for(int i = 0; i < groupLits.size(); i++) setFrozen(var(groupLits[i]), true);
     for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
-    if(option_n != 1) for(int i = 0; i < visible.size(); i++) setFrozen(var(visible[i].lit), true);
     _Circumscription::endProgram(numberOfVariables);
 }
 
@@ -145,7 +134,7 @@ lbool Circumscription::solve() {
         trace(circ, 10, "No checker is required!");
         status = solveWithoutChecker(count);
     }
-    else status = solve2(count);
+    else status = solve4(count);
     
     onDone();
     
@@ -240,6 +229,312 @@ lbool Circumscription::solve2(int& count) {
     return count > 0 ? l_True : l_False;
 }
 
+Circumscription::MHS::MHS(const vec<Lit>& objLits_) {
+    for(int i = 0; i < objLits_.size(); i++) {
+        objLits.push(objLits_[i]);
+        while(nVars() <= var(objLits[i])) newVar();
+        setFrozen(var(objLits[i]), true);
+        data.push(*this, objLits[i]);
+        last(objLits[i]) = objLits[i];
+    }
+    newVar();
+    verum = mkLit(nVars()-1);
+    addClause(verum);
+}
+
+void Circumscription::MHS::addSet(const vec<Lit>& lits) {
+    assert(decisionLevel() == 0);
+    
+    trace(circ, 10, "Add set: " << lits);
+    
+    vec<Lit> tmp;
+    
+    vec<Lit> curr, left, right;
+    for(int i = 0; i < lits.size(); i++) {
+        newVar();
+        curr.push(mkLit(nVars()-1));
+        
+        if(i != lits.size()-1) {
+            newVar();
+            left.push(mkLit(nVars()-1));
+        }
+        else left.push(~verum);
+        
+        if(i != 0) {
+            newVar();
+            right.push(mkLit(nVars()-1));
+        }
+        else right.push(~verum);
+    }
+    
+    for(int i = 0; i < lits.size(); i++) {
+        addClause(~curr[i], ~left[i]);
+        addClause(~curr[i], ~right[i]);
+        addClause(curr[i], left[i], right[i]);
+    }
+    
+    for(int i = 0; i < lits.size()-1; i++) {
+        addClause(~left[i], left[i+1], last(lits[i+1]));
+        addClause(left[i], ~left[i+1]);
+        addClause(left[i], ~last(lits[i+1]));
+    }
+    
+    for(int i = 1; i < lits.size(); i++) {
+        addClause(~right[i], right[i-1], last(lits[i-1]));
+        addClause(right[i], ~right[i-1]);
+        addClause(right[i], ~last(lits[i-1]));
+    }
+    
+    for(int i = 0; i < lits.size(); i++) {
+        newVar();
+        addClause(~last(lits[i]), curr[i], mkLit(nVars()-1));
+        addClause(last(lits[i]), ~curr[i]);
+        addClause(last(lits[i]), ~mkLit(nVars()-1));
+        last(lits[i]) = mkLit(nVars()-1);
+    }
+}
+        
+lbool Circumscription::MHS::compute(vec<Lit>& in, vec<Lit>& out, bool& withConflict) {
+    assert(decisionLevel() == 0);
+    
+    in.clear();
+    out.clear();
+    withConflict = false;
+
+    assumptions.clear();
+    for(int i = 0; i < objLits.size(); i++) assumptions.push(~last(objLits[i]));
+    for(;;) {
+        lbool res = solveWithBudget();
+        if(res == l_True) break;
+        if(res == l_Undef) return res;
+        assert(res == l_False);
+        if(conflict.size() == 0) return res;
+        withConflict = true;
+        for(int i = assumptions.size() - 1; i >= 0; i--) {
+            if(assumptions[i] == ~conflict[0]) {
+                while(++i < assumptions.size()) { assumptions[i-1] = assumptions[i]; }
+                assumptions.shrink(1);
+                break;
+            }
+        }
+    }
+    
+    for(int i = 0; i < objLits.size(); i++) {
+        if(value(objLits[i]) == l_True) in.push(objLits[i]);
+        else out.push(objLits[i]);
+    }
+    
+    cancelUntil(0);
+    
+    return l_True;
+}
+
+void Circumscription::MHS::getConflict(vec<Lit>& lits) {
+    lits.clear();
+    if(conflict.size() == 0) return;
+    
+    for(int i = 0, j = conflict.size() - 1; i < objLits.size(); i++) {
+        if(last(objLits[i]) != conflict[j]) continue;
+        lits.push(objLits[i]);
+        if(--j < 0) break; 
+    }
+}
+
+lbool Circumscription::solve3(int& count) {
+    assert(decisionLevel() == 0);
+    assert(assumptions.size() == 0);
+    assert(checker == NULL);
+    assert(query != lit_Undef);
+    
+    trace(circ, 10, "Activate checker");
+    checker = new Checker(*this);
+    
+    MHS mhs(weakLits);
+    vec<Lit> in, out;
+    
+    lbool status;
+    bool withConflict;
+    for(;;) {
+        status = mhs.compute(in, out, withConflict);
+        trace(circ, 10, "MHS: " << in << " " << out);
+        if(status == l_False) { cancelUntil(0); addEmptyClause(); break; }
+        if(status == l_Undef) break;
+        
+        out.moveTo(assumptions);
+        assumptions.push(query);
+        
+        cancelUntil(0);
+        status = solveWithBudget();
+        
+        if(status == l_Undef) break;
+        
+        if(status == l_True) {
+            if(withConflict) {
+                cout << "MUST BE CHECKED " << endl;
+                status = check();
+                if(status == l_Undef) return l_Undef;
+                if(status == l_True) learnClauseFromCounterModel();
+                else {
+                    assert(status == l_False);
+                    enumerateModels(count);
+                    if(count == option_n) break;
+                }
+            }
+            continue;
+        }
+        
+        trace(circ, 2, "UNSAT! Conflict of size " << conflict.size());
+        trace(circ, 100, "Conflict: " << conflict);
+        
+        conflicts++;
+        if(conflict.size() == 0) { cancelUntil(0); addEmptyClause(); break; }
+
+        shrinkConflict();
+        trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
+
+        if(conflict.size() == 0) { cancelUntil(0); addEmptyClause(); break; }
+        
+        if(conflict[0] == ~query) {
+            if(conflict.size() == 1) { cancelUntil(0); addEmptyClause(); break; }
+            
+            assumptions.clear();
+            while(conflict.size() > 1) { assumptions.push(~conflict.last()); conflict.pop(); }
+            status = solveWithBudget();
+            if(status == l_Undef) break;
+            if(status == l_True) {
+                trace(circ, 10, "Add clause to MHS: " << assumptions);
+                mhs.addClause_(assumptions);
+
+                continue;
+            }
+        }
+        
+        trace(circ, 4, "Analyze conflict of size " << conflict.size());
+        in.clear();
+        for(int i = 0; i < conflict.size(); i++) in.push(~conflict[i]);
+        mhs.addSet(in);
+    }
+
+    return count > 0 ? l_True : l_False;
+}
+
+lbool Circumscription::solve4(int& count) {
+    assert(decisionLevel() == 0);
+    assert(assumptions.size() == 0);
+    assert(query != lit_Undef);
+    
+    MHS mhs(weakLits);
+    vec<Lit> in, out;
+    
+    // REMOVE ME
+    checker = new Checker(*this);
+    
+    lbool status;
+    bool withConflict;
+    for(;;) {
+        status = mhs.compute(in, out, withConflict);
+        trace(circ, 10, "MHS: " << in << " " << out);
+        if(status == l_False) cerr << mhs.conflict << endl;
+        if(status == l_False) { cancelUntil(0); addEmptyClause(); break; }
+        if(status == l_Undef) break;
+        
+        out.copyTo(assumptions);
+        assumptions.push(query);
+        cancelUntil(0);
+        trace(circ, 15, "Assumptions: " << assumptions);
+        status = solveWithBudget();
+        
+        if(status == l_Undef) break;
+        
+        if(status == l_True) {
+            enumerateModels(count);
+            if(count == option_n) break;
+            continue;
+        }
+        
+        trace(circ, 2, "UNSAT! Conflict of size " << conflict.size());
+        trace(circ, 100, "Conflict: " << conflict);
+        
+        conflicts++;
+        if(conflict.size() == 0) { cancelUntil(0); addEmptyClause(); break; }
+
+        shrinkConflict();
+        trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
+
+        if(conflict.size() == 0) { cancelUntil(0); addEmptyClause(); break; }
+        if(conflict.size() == 1 && conflict[0] == ~query) { cancelUntil(0); addEmptyClause(); break; }
+        
+        if(conflict[0] == ~query) {
+            out.moveTo(assumptions);
+            status = solveWithBudget();
+            if(status == l_Undef) break;
+            if(status == l_True) {
+                copyModel();
+                
+                assert(check() == l_False);
+                
+                learnClauseFromModel();
+                continue;
+            }
+        }
+        
+        trace(circ, 4, "Analyze conflict of size " << conflict.size());
+        in.clear();
+        for(int i = 0; i < conflict.size(); i++) in.push(~conflict[i]);
+        mhs.addSet(in);
+    }
+
+    return count > 0 ? l_True : l_False;
+}
+
+lbool Circumscription::solve5(int& count) {
+    assert(decisionLevel() == 0);
+    assert(assumptions.size() == 0);
+    assert(query == lit_Undef);
+    
+    MHS mhs(weakLits);
+    vec<Lit> in, out;
+    
+    lbool status;
+    bool withConflict;
+    for(;;) {
+        status = mhs.compute(in, out, withConflict);
+        trace(circ, 10, "MHS: " << in << " " << out);
+        if(status == l_False) { cancelUntil(0); addEmptyClause(); break; }
+        if(status == l_Undef) break;
+        
+        out.moveTo(assumptions);
+        cancelUntil(0);
+        trace(circ, 15, "Assumptions: " << assumptions);
+        status = solveWithBudget();
+        
+        if(status == l_Undef) break;
+        
+        if(status == l_True) {
+            enumerateModels(count);
+            if(count == option_n) break;
+            continue;
+        }
+        
+        trace(circ, 2, "UNSAT! Conflict of size " << conflict.size());
+        trace(circ, 100, "Conflict: " << conflict);
+        
+        conflicts++;
+        if(conflict.size() == 0) { cancelUntil(0); addEmptyClause(); break; }
+
+        shrinkConflict();
+        trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
+
+        if(conflict.size() == 0) { cancelUntil(0); addEmptyClause(); break; }
+        
+        in.clear();
+        for(int i = 0; i < conflict.size(); i++) in.push(~conflict[i]);
+        mhs.addSet(in);
+    }
+
+    return count > 0 ? l_True : l_False;
+}
+
 lbool Circumscription::processConflictsUntilModel(int& conflicts) {
     lbool status;
     for(;;) {
@@ -258,7 +553,8 @@ lbool Circumscription::processConflictsUntilModel(int& conflicts) {
         shrinkConflict();
         trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
 
-        assert(conflict.size() > 0);
+        if(conflict.size() == 0) return l_False;
+
         trace(circ, 4, "Analyze conflict of size " << conflict.size());
         processConflict();
     }
@@ -327,6 +623,20 @@ void Circumscription::trimConflict() {
     
     assert(conflict.size() > 1);
 }
+//
+//void Circumscription::minimizeConflict() {
+//    cancelUntil(0);
+//    if(conflict.size() <= 1) return;
+//
+//    trimConflict();
+//
+//    vec<Lit> core;
+//    conflict.moveTo(core);
+//    
+//    for(int i = 0; i < core.size(); i++) {
+//        
+//    }
+//}
 
 void Circumscription::shrinkConflict() {
     cancelUntil(0);
@@ -368,24 +678,24 @@ void Circumscription::shrinkConflict() {
             cancelUntil(0);
             trimConflict();
             core.moveTo(assumptions);
-            conflict.moveTo(core);
+            for(int i = conflict.size()-1; i >= 0; i--) core.push(conflict[i]);
             
             int j = 0;
-            for(int i = 0, k = core.size() - 1; i < prec; i++) {
-                if(k < 0) break;
+            for(int i = 0, k = 0; i < prec; i++) {
+                if(k >= core.size()) break;
                 if(assumptions[i] != ~core[k]) continue;
                 assumptions[j++] = assumptions[i];
-                k--;
+                k++;
             }
             assumptions.shrink_(assumptions.size() - j);
             fixed = assumptions.size();
             
             j = 0;
-            for(int i = 0, k = core.size() - 1; i < allAssumptions.size(); i++) {
-                if(k < 0) break;
+            for(int i = 0, k = 0; i < allAssumptions.size(); i++) {
+                if(k >= core.size()) break;
                 if(allAssumptions[i] != ~core[k]) continue;
                 allAssumptions[j++] = allAssumptions[i];
-                k--;
+                k++;
             }
             allAssumptions.shrink_(allAssumptions.size() - j);
         }
@@ -439,7 +749,7 @@ lbool Circumscription::check() {
         if(value(weakLits[i]) == l_False) lits.push(weakLits[i]);
         else checker->assumptions.push(weakLits[i]);
     }
-    checker->addClause_(lits);
+    checker->addClause_(lits); // TODO: is this correct?
     return checker->solveWithBudget();
 }
 
@@ -459,7 +769,14 @@ void Circumscription::learnClauseFromModel() {
     for(int i = 0; i < groupLits.size(); i++) lits.push(modelValue(groupLits[i]) == l_False ? groupLits[i] : ~groupLits[i]);
     for(int i = 0; i < weakLits.size(); i++) if(modelValue(weakLits[i]) == l_False) lits.push(weakLits[i]);
     trace(circ, 10, "Blocking clause from model: " << lits);
+    cout << "BC " << lits << endl;
     addClause_(lits);
+}
+
+void Circumscription::learnClauseFromAssignment(vec<Lit>& lits) {
+    lits.clear();
+    for(int i = 0; i < groupLits.size(); i++) lits.push(value(groupLits[i]) == l_False ? groupLits[i] : ~groupLits[i]);
+    for(int i = 0; i < weakLits.size(); i++) if(value(weakLits[i]) == l_False) lits.push(weakLits[i]);
 }
 
 void Circumscription::learnClauseFromCounterModel() {
