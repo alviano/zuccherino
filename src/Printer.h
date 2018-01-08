@@ -47,6 +47,7 @@ private:
     
     int lastVisibleVar;
     
+    bool no_ids;
     string models_unknown;
     string models_none;
     string models_start;

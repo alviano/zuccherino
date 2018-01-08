@@ -26,7 +26,7 @@ namespace zuccherino {
 
 #define BUFFSIZE 1048576
     
-Printer::Printer(GlucoseWrapper& solver_) : solver(solver_), buff(NULL), lastVisibleVar(INT_MAX), models_unknown("s UNKNOWN\\n"), models_none("s UNSATISFIABLE\\n"), models_start("s SATISFIABLE\\n"), models_end(""), model_start("c Model #\\nv "), model_sep(""), model_end("\\n"), lit_start(""), lit_sep(" "), lit_end("") {
+Printer::Printer(GlucoseWrapper& solver_) : solver(solver_), buff(NULL), lastVisibleVar(INT_MAX), no_ids(false), models_unknown("s UNKNOWN\\n"), models_none("s UNSATISFIABLE\\n"), models_start("s SATISFIABLE\\n"), models_end(""), model_start("c Model #\\nv "), model_sep(""), model_end("\\n"), lit_start(""), lit_sep(" "), lit_end("") {
 }
 
 Printer::~Printer() {
@@ -45,7 +45,8 @@ void Printer::parse() {
     int count = readline();
     char* tmp = buff;
     
-    if(startswith(tmp, "models unknown:")) models_unknown = string(tmp);
+    if(startswith(tmp, "no ids")) no_ids = true;
+    else if(startswith(tmp, "models unknown:")) models_unknown = string(tmp);
     else if(startswith(tmp, "models none:")) models_none = string(tmp);
     else if(startswith(tmp, "models start:")) models_start = string(tmp);
     else if(startswith(tmp, "models end:")) models_end = string(tmp);
@@ -91,13 +92,15 @@ void Printer::onModel() {
     else pretty_print(model_sep, modelCount);
     pretty_print(model_start, modelCount);
     if(visible.size() == 0) {
-        for(int i = 0; i < solver.model.size(); i++) {
-            if(i >= lastVisibleVar) break;
-            if(i > 0) pretty_print(lit_sep, i+1);
-            pretty_print(lit_start, i+1);
-            if(solver.model[i] == l_False) cout << '-';
-            cout << (i+1);
-            pretty_print(lit_end, i+1);
+        if(!no_ids) {
+            for(int i = 0; i < solver.model.size(); i++) {
+                if(i >= lastVisibleVar) break;
+                if(i > 0) pretty_print(lit_sep, i+1);
+                pretty_print(lit_start, i+1);
+                if(solver.model[i] == l_False) cout << '-';
+                cout << (i+1);
+                pretty_print(lit_end, i+1);
+            }
         }
     }
     else {
