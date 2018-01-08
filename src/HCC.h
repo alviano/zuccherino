@@ -37,7 +37,7 @@ public:
     virtual void getConflict(vec<Lit>& ret);
     virtual void getReason(Lit lit, vec<Lit>& ret);
 
-    void add(vec<Var>& recHead, Lit body, vec<Var>& recBody);
+    void add(vec<Var>& recHead, vec<Lit>& nonRecLits, vec<Var>& recBody);
 
 private:
     class UsSolver : public GlucoseWrapper {
@@ -55,7 +55,7 @@ private:
     Lit conflictLit;
     
     struct RuleData {
-        Lit body;
+        vec<Lit> nonRecLits;
         vec<Var> recHead;
         vec<Var> recBody;
     };

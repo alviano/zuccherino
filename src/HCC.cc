@@ -160,7 +160,7 @@ bool HCC::activate() {
     for(int i = 0; i < rules.size(); i++) {
         assert(lits.size() == 0);
         RuleData& r = rules[i];
-        if(r.body != lit_Undef) lits.push(~usLit(r.body));
+        for(int j = 0; j < r.nonRecLits.size(); j++) lits.push(~usLit(r.nonRecLits[j]));
         for(int j = 0; j < r.recHead.size(); j++) lits.push(usLitP(r.recHead[j]));
         for(int j = 0; j < r.recBody.size(); j++) lits.push(~usLitP(r.recBody[j]));
         if(!usSolver.addClause_(lits)) return false;
@@ -171,16 +171,18 @@ bool HCC::activate() {
     return true;
 }
 
-void HCC::add(vec<Var>& recHead, Lit body, vec<Var>& recBody) {
-    if(body != lit_Undef && !data.has(body)) data.push(solver, body);
+void HCC::add(vec<Var>& recHead, vec<Lit>& nonRecLits, vec<Var>& recBody) {
     for(int i = 0; i < recHead.size(); i++) {
         if(!data.has(recHead[i])) data.push(solver, recHead[i]);
         heads(recHead[i]).push(rules.size());
     }
+    for(int i = 0; i< nonRecLits.size(); i++) {
+        if(!data.has(nonRecLits[i])) data.push(solver, nonRecLits[i]);
+    }
 
     rules.push();
     RuleData& r = rules.last();
-    r.body = body;
+    nonRecLits.moveTo(r.nonRecLits);
     recHead.moveTo(r.recHead);
     recBody.moveTo(r.recBody);
 }
@@ -227,14 +229,15 @@ void HCC::computeReason(Lit lit, vec<Lit>& ret) {
             vec<int>& h = heads(v);
             for(int i = 0; i < h.size(); i++) {
                 RuleData& r = rules[h[i]];
-                trace(hcc, 70, "in rule " << r.body << " " << r.recHead << " " << r.recBody);
+                trace(hcc, 70, "in rule " << r.nonRecLits << " " << r.recHead << " " << r.recBody);
                 
-                if(r.body != lit_Undef && solver.value(r.body) == l_False && solver.assignedIndex(r.body) < index) { 
-                    if(solver.level(var(r.body)) != 0) ret.push(r.body);
+                int j;
+                for(j = 0; j < r.nonRecLits.size(); j++) if(solver.value(r.nonRecLits[j]) == l_False && solver.assignedIndex(r.nonRecLits[j]) < index) break;
+                if(j != r.nonRecLits.size()) {
+                    if(solver.level(var(r.nonRecLits[j])) != 0) ret.push(r.nonRecLits[j]);
                     continue; 
                 }
                 
-                int j;
                 for(j = 0; j < r.recBody.size(); j++) if(flag(r.recBody[j]) || (solver.value(r.recBody[j]) == l_False && solver.assignedIndex(r.recBody[j]) == index)) break;
                 if(j != r.recBody.size()) { stack.push(r.recBody[j]); continue; }
                 

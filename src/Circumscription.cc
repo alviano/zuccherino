@@ -91,11 +91,11 @@ void _Circumscription::addSP(Var atom, Lit body, vec<Var>& rec) {
     spPropagator->add(atom, body, rec);
 }
 
-void _Circumscription::addHCC(int hccId, vec<Var>& recHead, Lit body, vec<Var>& recBody) {
+void _Circumscription::addHCC(int hccId, vec<Var>& recHead, vec<Lit>& nonRecLits, vec<Var>& recBody) {
     while(hccId >= hccs.size()) hccs.push(new HCC(*this, hccs.size()));
     assert(hccId < hccs.size());
     assert(hccs[hccId] != NULL);
-    hccs[hccId]->add(recHead, body, recBody);
+    hccs[hccId]->add(recHead, nonRecLits, recBody);
 }
 
 void _Circumscription::endProgram(int numberOfVariables) {

@@ -86,11 +86,11 @@ void ASP::addSP(Var atom, Lit body, vec<Var>& rec) {
     spPropagator->add(atom, body, rec);
 }
 
-void ASP::addHCC(int hccId, vec<Var>& recHead, Lit body, vec<Var>& recBody) {
+void ASP::addHCC(int hccId, vec<Var>& recHead, vec<Lit>& nonRecLits, vec<Var>& recBody) {
     while(hccId >= hccs.size()) hccs.push(new HCC(*this, hccs.size()));
     assert(hccId < hccs.size());
     assert(hccs[hccId] != NULL);
-    hccs[hccId]->add(recHead, body, recBody);
+    hccs[hccId]->add(recHead, nonRecLits, recBody);
 }
 
 void ASP::endProgram(int numberOfVariables) {
@@ -123,6 +123,7 @@ void ASP::parse(gzFile in_) {
     vec<int64_t> weights;
     
     vec<Lit> lits;
+    vec<Lit> nonRec;
     vec<Var> rec;
     vec<Var> rec2;
     
@@ -199,12 +200,15 @@ void ASP::parse(gzFile in_) {
             if(lits.size() == 0) cerr << "PARSE ERROR! Expected one or more head atoms: " << static_cast<char>(*in) << endl, exit(3);
             for(int i = 0; i < lits.size(); i++) rec.push(var(lits[i]));
             
-            Lit body = parseLit(in, *this);
+            Glucose::readClause(in, *this, nonRec);
             
             Glucose::readClause(in, *this, lits);
             for(int i = 0; i < lits.size(); i++) rec2.push(var(lits[i]));
 
-            addHCC(id, rec, body, rec2);
+            addHCC(id, rec, nonRec, rec2);
+            assert(rec.size() == 0);
+            assert(rec2.size() == 0);
+            assert(nonRec.size() == 0);
         }
         else if(*in == 'n') {
             ++in;

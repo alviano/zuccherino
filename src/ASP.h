@@ -37,7 +37,7 @@ public:
     inline bool addGreaterEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t weight) { return wcPropagator.addGreaterEqual(lits, weights, weight); }
     inline bool addEqual(vec<Lit>& lits, vec<int64_t>& weights, int64_t weight) { return wcPropagator.addEqual(lits, weights, weight); }
     void addSP(Var atom, Lit body, vec<Var>& rec);
-    void addHCC(int hccId, vec<Var>& recHead, Lit body, vec<Var>& recBody);
+    void addHCC(int hccId, vec<Var>& recHead, vec<Lit>& nonRecLits, vec<Var>& recBody);
     void endProgram(int numberOfVariables);
     
     void parse(gzFile in);
