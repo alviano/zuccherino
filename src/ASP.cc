@@ -65,6 +65,7 @@ void ASP::SPParser::parse() {
     if(lits.size() < 2) cerr << "PARSE ERROR! Expected two or more literals: " << static_cast<char>(*in) << endl, exit(3);
     for(int i = 2; i < lits.size(); i++) rec.push(var(lits[i]));
     solver.addSP(var(lits[0]), lits[1], rec);
+    lits.clear();
 }
 
 void ASP::SPParser::parseDetach() {
