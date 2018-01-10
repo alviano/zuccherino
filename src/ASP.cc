@@ -124,7 +124,7 @@ ASP::ASP() : weakParser(*this), weightConstraintParser(*this), spParser(*this), 
     if(option_asp_dlv_output) {
         setModelsNone("\n");
         setModelsStart("");
-        setModelsEnd("");
+        setModelsEnd("\n");
         setModelStart("{");
         setModelSep("\n");
         setModelEnd("}");
