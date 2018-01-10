@@ -41,8 +41,6 @@ void ASP::WeightConstraintParser::parse() {
     assert(lits.size() == 0);
     assert(weights.size() == 0);
     Glucose::StreamBuffer& in = this->in();
-    if(*in != '=') cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
-    ++in;
     Glucose::readClause(in, solver, lits);
     for(int i = 0; i < lits.size(); i++) weights.push(parseLong(in));
     int64_t weight = parseLong(in);
@@ -115,7 +113,7 @@ void ASP::HCCParser::parseDetach() {
 ASP::ASP() : weakParser(*this), weightConstraintParser(*this), spParser(*this), hccParser(*this), endParser(*this), ccPropagator(*this), wcPropagator(*this, &ccPropagator), spPropagator(NULL), optimization(false) {
     setProlog("asp");
     setParser('w', &weakParser);
-    setParser('>', &weightConstraintParser);
+    setParser('a', &weightConstraintParser);
     setParser('s', &spParser);
     setParser('h', &hccParser);
     setParser('n', &endParser);
