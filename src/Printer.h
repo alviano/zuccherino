@@ -35,6 +35,19 @@ public:
     
     void addVisible(Lit lit, const char* str, int len);
     inline void setLastVisibleVar(int value) { lastVisibleVar = value; }
+    
+    inline void setNoIds(bool value) { no_ids = value; }
+    inline void setModelsUnknown(const string& value) { models_unknown = value; }
+    inline void setModelsNone(const string& value) { models_none = value; }
+    inline void setModelsStart(const string& value) { models_start = value; }
+    inline void setModelsEnd(const string& value) { models_end= value; }
+    inline void setModelStart(const string& value) { model_start = value; }
+    inline void setModelSep(const string& value) { model_sep= value; }
+    inline void setModelEnd(const string& value) { model_end= value; }
+    inline void setLitStart(const string& value) { lit_start = value; }
+    inline void setLitSep(const string& value) { lit_sep = value; }
+    inline void setLitEnd(const string& value) { lit_end = value; }
+    
     void onStart();
     void onModel();
     void onDone();

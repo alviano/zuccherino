@@ -71,6 +71,17 @@ public:
     
     inline void addVisible(Lit lit, const char* str, int len) { printer.addVisible(lit, str, len); }
     inline void setLastVisibleVar(int value) { printer.setLastVisibleVar(value); }
+    inline void setNoIds(bool value) { printer.setNoIds(value); }
+    inline void setModelsUnknown(const string& value) { printer.setModelsUnknown(value); }
+    inline void setModelsNone(const string& value) { printer.setModelsNone(value); }
+    inline void setModelsStart(const string& value) { printer.setModelsStart(value); }
+    inline void setModelsEnd(const string& value) { printer.setModelsEnd(value); }
+    inline void setModelStart(const string& value) { printer.setModelStart(value); }
+    inline void setModelSep(const string& value) { printer.setModelSep(value); }
+    inline void setModelEnd(const string& value) { printer.setModelEnd(value); }
+    inline void setLitStart(const string& value) { printer.setLitStart(value); }
+    inline void setLitSep(const string& value) { printer.setLitSep(value); }
+    inline void setLitEnd(const string& value) { printer.setLitEnd(value); }
     
 protected:
     vec<int> trailPosition;

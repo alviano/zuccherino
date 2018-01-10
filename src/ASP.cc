@@ -26,11 +26,126 @@ static Glucose::BoolOption option_asp_dlv_output("ASP", "asp-dlv-output", "Set o
 
 namespace zuccherino {
 
-ASP::ASP() : ccPropagator(*this), wcPropagator(*this, &ccPropagator), spPropagator(NULL), optimization(false) {
+void ASP::WeakParser::parse() {
+    Glucose::StreamBuffer& in = this->in();
+    Lit lit = parseLit(in, solver);
+    int64_t weight = parseLong(in);
+    int level = parseInt(in);
+    if(weight < 0) cerr << "PARSE ERROR! Weights of soft literals must be nonnegative: " << static_cast<char>(*in) << endl, exit(3);
+    if(level < 0) cerr << "PARSE ERROR! Levels of soft literals must be nonnegative: " << static_cast<char>(*in) << endl, exit(3);
+    if(lit != lit_Undef && (solver.data.has(lit) || solver.data.has(~lit))) cerr << "PARSE ERROR! Repeated soft literal: " << lit << endl, exit(3);
+    solver.addWeakLit(lit, weight, level);
+}
+
+void ASP::WeightConstraintParser::parse() {
+    assert(lits.size() == 0);
+    assert(weights.size() == 0);
+    Glucose::StreamBuffer& in = this->in();
+    if(*in != '=') cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
+    ++in;
+    Glucose::readClause(in, solver, lits);
+    for(int i = 0; i < lits.size(); i++) weights.push(parseLong(in));
+    int64_t weight = parseLong(in);
+    solver.addGreaterEqual(lits, weights, weight);
+}
+
+void ASP::WeightConstraintParser::parseDetach() {
+    Parser::parseDetach();
+    vec<Lit> tmp;
+    lits.moveTo(tmp);
+    vec<int64_t> tmp2;
+    weights.moveTo(tmp2);
+}
+
+void ASP::SPParser::parse() {
+    assert(lits.size() == 0);
+    assert(rec.size() == 0);
+    Glucose::StreamBuffer& in = this->in();
+    Glucose::readClause(in, solver, lits);
+    if(lits.size() < 2) cerr << "PARSE ERROR! Expected two or more literals: " << static_cast<char>(*in) << endl, exit(3);
+    for(int i = 2; i < lits.size(); i++) rec.push(var(lits[i]));
+    solver.addSP(var(lits[0]), lits[1], rec);
+}
+
+void ASP::SPParser::parseDetach() {
+    Parser::parseDetach();
+    vec<Lit> tmp;
+    lits.moveTo(tmp);
+    vec<Var> tmp2;
+    rec.moveTo(tmp2);
+}
+
+void ASP::HCCParser::parse() {
+    assert(lits.size() == 0);
+    assert(rec.size() == 0);
+    assert(rec2.size() == 0);
+    assert(nonRec.size() == 0);
+    Glucose::StreamBuffer& in = this->in();
+    
+    int id = parseInt(in);
+    if(id < 0) cerr << "PARSE ERROR! Id of HCC must be nonnegative: " << static_cast<char>(*in) << endl, exit(3);
+            
+    Glucose::readClause(in, solver, lits);
+    if(lits.size() == 0) cerr << "PARSE ERROR! Expected one or more head atoms: " << static_cast<char>(*in) << endl, exit(3);
+    for(int i = 0; i < lits.size(); i++) rec.push(var(lits[i]));
+    
+    Glucose::readClause(in, solver, nonRec);
+    
+    Glucose::readClause(in, solver, lits);
+    for(int i = 0; i < lits.size(); i++) rec2.push(var(lits[i]));
+    lits.clear();
+
+    solver.addHCC(id, rec, nonRec, rec2);
+}
+
+void ASP::HCCParser::parseDetach() {
+    Parser::parseDetach();
+    vec<Lit> tmp;
+    lits.moveTo(tmp);
+    vec<Var> tmp2;
+    rec.moveTo(tmp2);
+    vec<Var> tmp3;
+    rec2.moveTo(tmp3);
+    vec<Lit> tmp4;
+    nonRec.moveTo(tmp4);
+}
+
+
+ASP::ASP() : weakParser(*this), weightConstraintParser(*this), spParser(*this), hccParser(*this), endParser(*this), ccPropagator(*this), wcPropagator(*this, &ccPropagator), spPropagator(NULL), optimization(false) {
+    setProlog("asp");
+    setParser('w', &weakParser);
+    setParser('>', &weightConstraintParser);
+    setParser('s', &spParser);
+    setParser('h', &hccParser);
+    setParser('n', &endParser);
+
+    setNoIds(true);
+    setModelsUnknown("UNKNOWN\n");
+    if(option_asp_dlv_output) {
+        setModelsNone("\n");
+        setModelsStart("");
+        setModelsEnd("");
+        setModelStart("{");
+        setModelSep(", ");
+        setModelEnd("}");
+        setLitStart("");
+        setLitSep(",");
+        setLitEnd("");
+    }
+    else {
+        setModelsNone("INCONSISTENT\n");
+        setModelsStart("");
+        setModelsEnd("");
+        setModelStart("ANSWER\n");
+        setModelSep("");
+        setModelEnd("\n");
+        setLitStart("");
+        setLitSep(" ");
+        setLitEnd(".");
+    }
 }
 
 ASP::~ASP() {
-    for(int i = 0; i < visible.size(); i++) delete[] visible[i].value;
     if(spPropagator != NULL) delete spPropagator;
     for(int i = 0; i < hccs.size(); i++) delete hccs[i];
 }
@@ -39,6 +154,7 @@ bool ASP::interrupt() {
     GlucoseWrapper::interrupt();
     if(model.size() == 0) return false;
     printModel();
+    onDone();
     return true;
 }
 
@@ -72,15 +188,6 @@ void ASP::addWeakLit(Lit lit, int64_t weight, int level) {
     optimization = true;
 }
 
-void ASP::addVisible(Lit lit, const char* str, int len) {
-    assert(len >= 0);
-    assert(static_cast<int>(strlen(str)) <= len);
-    visible.push();
-    visible.last().lit = lit;
-    visible.last().value = new char[len+1];
-    strcpy(visible.last().value, str);
-}
-
 void ASP::addSP(Var atom, Lit body, vec<Var>& rec) {
     if(spPropagator == NULL) spPropagator = new SourcePointers(*this);
     spPropagator->add(atom, body, rec);
@@ -104,151 +211,14 @@ void ASP::endProgram(int numberOfVariables) {
     }
     for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
     
-    if(option_n != 1) for(int i = 0; i < visible.size(); i++) setFrozen(var(visible[i].lit), true);
-
     if(!simplify()) return;
 
     if(!activatePropagators()) return;
 }
 
-void ASP::parse(gzFile in_) {
-    Glucose::StreamBuffer in(in_);
-
-    const unsigned BUFFSIZE = 1048576;
-    char* buff = new char[BUFFSIZE];
-    
-    bool pasp = false;
-    
-    int64_t weight;
-    vec<int64_t> weights;
-    
-    vec<Lit> lits;
-    vec<Lit> nonRec;
-    vec<Var> rec;
-    vec<Var> rec2;
-    
-    for(;;) {
-        skipWhitespace(in);
-        if(*in == EOF) break;
-        if(*in == 'p') {
-            ++in;
-            if(*in != ' ') cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
-            ++in;
-            
-            if(eagerMatch(in, "asp")) skipLine(in);
-            else cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
-            
-            pasp = true;
-        }
-        else if(*in == 'c') skipLine(in);
-        else if(*in == 'w') {
-            ++in;
-            Lit lit = parseLit(in, *this);
-            weight = parseLong(in);
-            int level = parseInt(in);
-            if(weight < 0) cerr << "PARSE ERROR! Weights of soft literals must be nonnegative: " << static_cast<char>(*in) << endl, exit(3);
-            if(level < 0) cerr << "PARSE ERROR! Levels of soft literals must be nonnegative: " << static_cast<char>(*in) << endl, exit(3);
-            if(lit != lit_Undef && (data.has(lit) || data.has(~lit))) cerr << "PARSE ERROR! Repeated soft literal: " << lit << endl, exit(3);
-            addWeakLit(lit, weight, level);
-        }
-        else if(*in == 'v') {
-            ++in;
-            Lit lit = parseLit(in, *this);
-            
-            ++in;
-            int count = 0;
-            while(*in != EOF && *in != '\n' && static_cast<unsigned>(count) < BUFFSIZE) { buff[count++] = *in; ++in; }
-            if(static_cast<unsigned>(count) >= BUFFSIZE) cerr << "PARSE ERROR! Value of visible literal " << lit << " is too long!" << endl, exit(3);
-            buff[count] = '\0';
-            
-            addVisible(lit, buff, count);
-        }
-        else if(*in == '>') {
-            ++in;
-            if(*in != '=') cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
-            ++in;
-            
-            Glucose::readClause(in, *this, lits);
-            for(int i = 0; i < lits.size(); i++) weights.push(parseLong(in));
-            weight = parseLong(in);
-            if(!addGreaterEqual(lits, weights, weight)) return;
-        }
-        else if(*in == '=') {
-            ++in;
-            
-            Glucose::readClause(in, *this, lits);
-            for(int i = 0; i < lits.size(); i++) weights.push(parseLong(in));
-            weight = parseLong(in);
-            if(!addEqual(lits, weights, weight)) return;
-        }
-        else if(*in == 's') {
-            ++in;
-            
-            Glucose::readClause(in, *this, lits);
-            if(lits.size() < 2) cerr << "PARSE ERROR! Expected two or more literals: " << static_cast<char>(*in) << endl, exit(3);
-            for(int i = 2; i < lits.size(); i++) rec.push(var(lits[i]));
-            
-            addSP(var(lits[0]), lits[1], rec);
-        }
-        else if(*in == 'h') {
-            ++in;
-            
-            int id = parseInt(in);
-            if(id < 0) cerr << "PARSE ERROR! Id of HCC must be nonnegative: " << static_cast<char>(*in) << endl, exit(3);
-            
-            Glucose::readClause(in, *this, lits);
-            if(lits.size() == 0) cerr << "PARSE ERROR! Expected one or more head atoms: " << static_cast<char>(*in) << endl, exit(3);
-            for(int i = 0; i < lits.size(); i++) rec.push(var(lits[i]));
-            
-            Glucose::readClause(in, *this, nonRec);
-            
-            Glucose::readClause(in, *this, lits);
-            for(int i = 0; i < lits.size(); i++) rec2.push(var(lits[i]));
-
-            addHCC(id, rec, nonRec, rec2);
-            assert(rec.size() == 0);
-            assert(rec2.size() == 0);
-            assert(nonRec.size() == 0);
-        }
-        else if(*in == 'n') {
-            ++in;
-            int n = parseInt(in);
-            endProgram(n);
-        }
-        else {
-            Glucose::readClause(in, *this, lits);
-            if(!addClause_(lits)) break;
-        }
-    }
-    
-    delete[] buff;
-    
-    if(!pasp) cerr << "PARSE ERROR! Invalid input: must start with 'p asp'" << endl, exit(3);
-}
-
-void ASP::printModel() const {
+void ASP::printModel() {
     if(!option_print_model) return;
-    if(option_asp_dlv_output) {
-        cout << "{";
-        bool first = true;
-        for(int i = 0; i < visible.size(); i++) {
-            assert(var(visible[i].lit) < model.size());
-            if(sign(visible[i].lit) ^ (model[var(visible[i].lit)] == l_True)) {
-                if(first) first = false;
-                else cout << ", ";
-                cout << visible[i].value;
-            }
-        }
-        cout << "}" << endl;
-    }
-    else {
-        cout << "ANSWER" << endl;
-        for(int i = 0; i < visible.size(); i++) {
-            assert(var(visible[i].lit) < model.size());
-            if(sign(visible[i].lit) ^ (model[var(visible[i].lit)] == l_True)) cout << visible[i].value << ". ";
-        }
-        cout << endl;
-    }
+    onModel();
     if(isOptimizationProblem()) {
         cout << "COST";
         for(int i = 0; i < solved.size(); i++) cout << " " << solved[i].lowerBound << "@" << solved[i].level;
@@ -261,6 +231,9 @@ void ASP::printModel() const {
 lbool ASP::solve() {
     assert(decisionLevel() == 0);
     assert(assumptions.size() == 0);
+    
+    onStart();
+    
     if(!ok) return l_False;
 
     if(isOptimizationProblem()) {
@@ -317,8 +290,14 @@ lbool ASP::solve() {
     
     assert(softLits.size() == 0);
 
-    if(option_n == 1) printModel();
+    if(option_n == 1) {
+        copyModel();
+        printModel();
+    }
     else enumerateModels();
+    
+    onDone();
+    
     return l_True;
 }
 

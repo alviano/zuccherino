@@ -40,15 +40,74 @@ public:
     void addHCC(int hccId, vec<Var>& recHead, vec<Lit>& nonRecLits, vec<Var>& recBody);
     void endProgram(int numberOfVariables);
     
-    void parse(gzFile in);
-    
-    void printModel() const;
+    void printModel();
     lbool solve();
     
     inline bool isOptimizationProblem() const { return optimization; }
     inline bool optimumFound() const { return levels.size() == 0; }
     
 private:
+    class WeakParser : public Parser {
+    public:
+        WeakParser(ASP& solver_) : solver(solver_) {}
+        virtual void parse();
+    
+    private:
+        ASP& solver;
+    };
+    WeakParser weakParser;
+    
+    class WeightConstraintParser : public Parser {
+    public:
+        WeightConstraintParser(ASP& solver_) : solver(solver_) {}
+        virtual void parse();
+        virtual void parseDetach();
+    
+    private:
+        ASP& solver;
+        vec<Lit> lits;
+        vec<int64_t> weights;
+    };
+    WeightConstraintParser weightConstraintParser;
+
+    class SPParser : public Parser {
+    public:
+        SPParser(ASP& solver_) : solver(solver_) {}
+        virtual void parse();
+        virtual void parseDetach();
+    
+    private:
+        ASP& solver;
+        vec<Lit> lits;
+        vec<Var> rec;
+    };
+    SPParser spParser;
+    
+    class HCCParser : public Parser {
+    public:
+        HCCParser(ASP& solver_) : solver(solver_) {}
+        virtual void parse();
+        virtual void parseDetach();
+    
+    private:
+        ASP& solver;
+        vec<Lit> lits;
+        vec<Var> rec;
+        vec<Var> rec2;
+        vec<Lit> nonRec;
+    };
+    HCCParser hccParser;
+
+    class EndParser : public Parser {
+    public:
+        EndParser(ASP& solver_) : solver(solver_) {}
+        virtual void parse() { solver.endProgram(parseInt(in())); }
+    
+    private:
+        ASP& solver;
+    };
+    EndParser endParser;
+
     CardinalityConstraintPropagator ccPropagator;
     WeightConstraintPropagator wcPropagator;
     SourcePointers* spPropagator;
@@ -73,12 +132,6 @@ private:
     };
     vec<Level> levels;
     vec<Level> solved;
-    
-    struct VisibleData {
-        Lit lit;
-        char* value;
-    };
-    vec<VisibleData> visible;
     
     int optimization:1;
     
