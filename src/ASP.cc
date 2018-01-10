@@ -229,12 +229,7 @@ void ASP::printModel() {
     }
 }
 
-lbool ASP::solve() {
-    assert(decisionLevel() == 0);
-    assert(assumptions.size() == 0);
-    
-    onStart();
-    
+lbool ASP::solveInternal() {
     if(!ok) return l_False;
 
     if(isOptimizationProblem()) {
@@ -264,7 +259,7 @@ lbool ASP::solve() {
                 trace(asp, 2, "UNSAT! Conflict of size " << conflict.size());
                 trace(asp, 100, "Conflict: " << conflict);
                 
-                if(conflict.size() == 0) { levels.last().lowerBound = levels.last().upperBound; limit = 1; continue; }
+                if(conflict.size() == 0) { ok = false; levels.last().lowerBound = levels.last().upperBound; limit = 1; continue; }
 
                 assert_msg(computeConflictWeight() == limit, "computeConflictWeight()=" << computeConflictWeight() << "; limit=" << limit << "; conflict=" << conflict);
                 shrinkConflict(limit);
@@ -297,9 +292,20 @@ lbool ASP::solve() {
     }
     else enumerateModels();
     
+    return l_True;
+}
+
+lbool ASP::solve() {
+    assert(decisionLevel() == 0);
+    assert(assumptions.size() == 0);
+    
+    onStart();
+
+    lbool status = solveInternal();
+        
     onDone();
     
-    return l_True;
+    return status;
 }
 
 void ASP::hardening() {

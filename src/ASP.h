@@ -147,6 +147,7 @@ private:
     int64_t computeConflictWeight() const;
     void processConflict(int64_t weight);
     
+    lbool solveInternal();
     void enumerateModels();
 };
 
