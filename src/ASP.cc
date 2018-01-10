@@ -127,7 +127,7 @@ ASP::ASP() : weakParser(*this), weightConstraintParser(*this), spParser(*this), 
         setModelsEnd("");
         setModelStart("{");
         setModelSep(", ");
-        setModelEnd("}");
+        setModelEnd("}\n");
         setLitStart("");
         setLitSep(",");
         setLitEnd("");
