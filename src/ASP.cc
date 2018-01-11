@@ -210,9 +210,8 @@ void ASP::endProgram(int numberOfVariables) {
     }
     for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
     
-    if(!simplify()) return;
-
     if(!activatePropagators()) return;
+    if(!simplify()) return;
 }
 
 void ASP::printModel() {

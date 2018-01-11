@@ -101,9 +101,8 @@ void _Circumscription::addHCC(int hccId, vec<Var>& recHead, vec<Lit>& nonRecLits
 void _Circumscription::endProgram(int numberOfVariables) {
     while(nVars() < numberOfVariables) { newVar(); if(option_n != 1) setFrozen(nVars()-1, true); }
     
-    if(!simplify()) return;
-
     if(!activatePropagators()) return;
+    if(!simplify()) return;
 }
 
 void Circumscription::endProgram(int numberOfVariables) {
