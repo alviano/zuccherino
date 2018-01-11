@@ -167,7 +167,8 @@ bool GlucoseWrapper::activatePropagators() {
 void GlucoseWrapper::updateTrailPositions() {
     while(nTrailPosition < nAssigns()) { 
         trace_(50, "Trail index of " << assigned(nTrailPosition) << "@" << level(var(assigned(nTrailPosition))) << " is " << nTrailPosition);
-        trailPosition[var(assigned(nTrailPosition))] = nTrailPosition; nTrailPosition++;
+        trailPosition[var(assigned(nTrailPosition))] = nTrailPosition;
+        nTrailPosition++;
     }
 }
 

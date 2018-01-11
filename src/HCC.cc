@@ -34,7 +34,7 @@ HCC::HCC(GlucoseWrapper& solver, const HCC& init) : Propagator(solver, init), us
 HCC::HCC(GlucoseWrapper& solver, int id) : Propagator(solver), nextToPropagate(0), conflictLit(lit_Undef) { 
     stringstream ss;
     ss << "HCC " << id;
-    solver.setId(ss.str());
+    usSolver.setId(ss.str());
 }
 
 void HCC::onCancel() {

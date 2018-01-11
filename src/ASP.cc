@@ -283,10 +283,7 @@ lbool ASP::solveInternal() {
     
     assert(softLits.size() == 0);
 
-    if(option_n == 1) {
-        copyModel();
-        printModel();
-    }
+    if(option_n == 1) printModel();
     else enumerateModels();
     
     return l_True;
