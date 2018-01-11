@@ -93,6 +93,7 @@ lbool GlucoseWrapper::solveWithBudget() {
         if(!withinBudget()) break;
         curr_restarts++;
     }
+    if(status == l_False && conflict.size() == 0) ok = false;
     return status;
 }
 

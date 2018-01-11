@@ -200,7 +200,7 @@ void ASP::addHCC(int hccId, vec<Var>& recHead, vec<Lit>& nonRecLits, vec<Var>& r
 }
 
 void ASP::endProgram(int numberOfVariables) {
-    while(nVars() < numberOfVariables) { newVar(); if(option_n != 1) setFrozen(nVars()-1, true); }
+    while(nVars() < numberOfVariables) { newVar(); }
     
     if(levels.size() == 0) {
         levels.push();
@@ -230,10 +230,12 @@ lbool ASP::solveInternal() {
     if(!ok) return l_False;
 
     if(isOptimizationProblem()) {
-        if(solveWithBudget() == l_True) updateUpperBound();
+        lbool status = solveWithBudget();
+        if(status == l_True) updateUpperBound();
         cancelUntil(0);
         softLits.copyTo(assumptions);
-        if(solveWithBudget() == l_True) updateUpperBound();
+        status = solveWithBudget();
+        if(status == l_True) updateUpperBound();
         cancelUntil(0);
     }
     
@@ -364,7 +366,7 @@ void ASP::updateUpperBound() {
             levels[l].upperBound = sum;
         }
     }
-    if(better) copyModel();
+    if(better) { copyModel(); }
 }
 
 int64_t ASP::computeConflictWeight() const {

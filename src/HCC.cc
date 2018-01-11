@@ -69,6 +69,7 @@ bool HCC::propagate_() {
     }
     trace(hcc, 30, "with assumptions " << ass);
     lbool status = usSolver.solve(ass);
+    trace(hcc, 40, "result: " << status);
     if(status == l_True) {
         vec<Lit> lits;
         for(int i = 0; i < data.vars(); i++) {
@@ -141,17 +142,20 @@ bool HCC::activate() {
     
     vec<Lit> lits;
     for(int i = 0; i < data.vars(); i++) {
+        Var v = data.var(i);
+        solver.setFrozen(v, true);
         usSolver.newVar();
         usSolver.newVar();
-        if(!usSolver.addClause(usLit(data.var(i)), ~usLitP(data.var(i)))) return false;
-        lits.push(usLit(data.var(i)));
-        lits.push(~usLitP(data.var(i)));
+        if(!usSolver.addClause(usLit(v), ~usLitP(v))) return false;
+        lits.push(usLit(v));
+        lits.push(~usLitP(v));
     }
     assert(lits.size() > 0);
     usSolver.addGreaterEqual(lits, data.vars() + 1);
     
     for(int i = 0; i < data.lits(); i++) {
         Lit lit = data.lit(i);
+        solver.setFrozen(var(lit), true);
         usSolver.newVar();
         usLit(lit) = mkLit(usSolver.nVars()-1, sign(lit));
     }
