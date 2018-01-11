@@ -152,7 +152,6 @@ bool HCC::activate() {
     
     for(int i = 0; i < data.lits(); i++) {
         Lit lit = data.lit(i);
-        assert(!data.has(var(lit)));
         usSolver.newVar();
         usLit(lit) = mkLit(usSolver.nVars()-1, sign(lit));
     }
@@ -229,7 +228,7 @@ void HCC::computeReason(Lit lit, vec<Lit>& ret) {
             vec<int>& h = heads(v);
             for(int i = 0; i < h.size(); i++) {
                 RuleData& r = rules[h[i]];
-                trace(hcc, 70, "in rule " << r.recHead << " " << r.nonRecLits << " " << r.recBody);
+                trace(hcc, 70, "in rule recHead" << r.recHead << " nonRecLits" << r.nonRecLits << " recBody" << r.recBody);
                 
                 int j;
                 for(j = 0; j < r.nonRecLits.size(); j++) if(solver.value(r.nonRecLits[j]) == l_False && solver.assignedIndex(r.nonRecLits[j]) < index) break;
