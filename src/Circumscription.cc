@@ -768,7 +768,6 @@ void Circumscription::learnClauseFromModel() {
     for(int i = 0; i < groupLits.size(); i++) lits.push(modelValue(groupLits[i]) == l_False ? groupLits[i] : ~groupLits[i]);
     for(int i = 0; i < weakLits.size(); i++) if(modelValue(weakLits[i]) == l_False) lits.push(weakLits[i]);
     trace(circ, 10, "Blocking clause from model: " << lits);
-    cout << "BC " << lits << endl;
     addClause_(lits);
 }
 
