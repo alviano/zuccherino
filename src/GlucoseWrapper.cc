@@ -20,6 +20,7 @@
 #include <core/Dimacs.h>
 
 extern Glucose::IntOption option_n;
+extern Glucose::BoolOption pre;
 
 namespace zuccherino {
 
@@ -55,6 +56,14 @@ Var GlucoseWrapper::newVar(bool polarity, bool dvar) {
 
 void GlucoseWrapper::onNewDecisionLevel(Lit lit) {
     reasonFromPropagators[var(lit)] = NULL;
+}
+
+bool GlucoseWrapper::eliminate(bool turn_off_elim) {
+    trace(solver, 1, "Preprocessing: " << (pre ? "start" : "skip"))
+    if(!pre) return true;
+    bool res = SimpSolver::eliminate(turn_off_elim);
+    trace(solver, 1, "Preprocessing: finish");
+    return res;
 }
 
 lbool GlucoseWrapper::solve() {

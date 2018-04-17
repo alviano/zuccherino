@@ -46,6 +46,7 @@ public:
     inline int assignedIndex(Var var) const { return trailPosition[var]; }
     inline int assignedIndex(Lit lit) const { return trailPosition[var(lit)]; }
     
+    bool eliminate(bool turn_off_elim);
     lbool solve();
     lbool solveWithBudget();
     
@@ -69,6 +70,7 @@ public:
     
     inline void setId(const string& value) { id = value; }
     
+    inline bool hasVisibleVars() const { return printer.hasVisibleVars(); }
     inline void addVisible(Lit lit, const char* str, int len) { printer.addVisible(lit, str, len); }
     inline void setLastVisibleVar(int value) { printer.setLastVisibleVar(value); }
     inline void setNoIds(bool value) { printer.setNoIds(value); }

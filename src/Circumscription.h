@@ -168,12 +168,18 @@ private:
     void learnClauseFromAssignment(vec<Lit>& lits);
     void learnClauseFromCounterModel();
     
+    lbool solveDecisionQuery(int& count);
+    lbool solveDecisionQuery2();
+    lbool solveDecisionQuery3(int& count);
+    
     lbool solveWithoutChecker(int& count);
+    
     lbool solve1(int& count);
     lbool solve2(int& count);
     lbool solve3(int& count);
     lbool solve4(int& count);
     lbool solve5(int& count);
+    
     lbool processConflictsUntilModel(int& conflicts);
 };
 

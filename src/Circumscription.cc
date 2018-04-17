@@ -22,7 +22,12 @@
 extern Glucose::IntOption option_n;
 extern Glucose::BoolOption option_print_model;
 
-Glucose::IntOption option_circ_wit("TRACE", "circ-wit", "Number of desired witnesses. Non-positive integers are interpreted as unbounded.", 1, Glucose::IntRange(0, INT32_MAX));
+Glucose::IntOption option_circ_wit("CIRC", "circ-wit", "Number of desired witnesses. Non-positive integers are interpreted as unbounded.", 1, Glucose::IntRange(0, INT32_MAX));
+Glucose::BoolOption option_circ_propagate_and_exit("CIRC", "circ-propagate-and-exit", "Just propagate and terminate.", false);
+Glucose::IntOption option_circ_query_strat("CIRC", "circ-query-strat",
+    "1: add the query to the theory and check models; "
+    "2: try to answer the query on cardinality-minimal, then switch to 1; ",
+    1, Glucose::IntRange(1, 2));
 
 namespace zuccherino {
 
@@ -129,15 +134,236 @@ lbool Circumscription::solve() {
     int count = 0;
     lbool status = l_Undef;
     if(!ok) status = l_False;
+    else if(option_circ_propagate_and_exit) { propagate(); copyModel(); onModel(); }
+    //else if(query != lit_Undef && !hasVisibleVars()) status = solveDecisionQuery2();
     else if(query == lit_Undef || (data.has(query) && (soft(query) || group(query))) || (data.has(~query) && group(~query))) {
         trace(circ, 10, "No checker is required!");
         status = solveWithoutChecker(count);
     }
-    else status = solve4(count);
+    else {
+        switch(option_circ_query_strat) {
+        case 1: status = solve1(count); break;
+        case 2: status = solve2(count); break;
+        default: exit(-1); break;
+        }
+    }
     
     onDone();
     
     return status;
+}
+
+lbool Circumscription::solveDecisionQuery(int& count) {
+    assert(decisionLevel() == 0);
+    assert(assumptions.size() == 0);
+    assert(checker == NULL);
+    assert(query != lit_Undef);
+    assert(groupLits.size() == 0);
+    
+    trace(circ, 10, "Activate checker");
+    checker = new Checker(*this);
+    checker->addClause(~query);
+    
+    addClause(query);
+    
+    Checker previousSolver(*this);
+    vec<Lit> lastCM;
+    vec<Lit> lastBC;
+    
+    lbool status;
+    for(;;) {
+        status = solveWithBudget();
+        cerr << status << trail<<trail_lim<<endl;
+        if(status == l_Undef) return l_Undef;
+        if(status == l_False) break;
+        assert(status == l_True);
+        status = check();
+        if(status == l_False) {
+            enumerateModels(count);
+            if(count == option_n) break;
+        }
+        else if(status == l_Undef) return l_Undef;
+        else {
+            assert(status == l_True);
+            trace(circ, 20, "Check failed!");
+            
+            lastCM.clear();
+            for(int i = 0; i < weakLits.size(); i++) if(checker->value(weakLits[i]) == l_False) lastCM.push(~weakLits[i]); else lastCM.push(weakLits[i]);
+            
+            if(lastBC.size() > 0) previousSolver.addClause_(lastBC);
+            lastBC.clear();
+            for(int i = 0; i < groupLits.size(); i++) lastBC.push(checker->value(groupLits[i]) == l_False ? groupLits[i] : ~groupLits[i]);
+            for(int i = 0; i < weakLits.size(); i++) if(checker->value(weakLits[i]) == l_False) lastBC.push(weakLits[i]);
+            trace(circ, 10, "Blocking clause from counter model: " << lastBC);
+            cancelUntil(0);
+            addClause(lastBC);
+        }
+    }
+    
+    if(count == 0 && lastCM.size() > 0) {
+        lastCM.moveTo(previousSolver.assumptions);
+        status = previousSolver.solveWithBudget();
+        if(status == l_True) {
+            previousSolver.assigns.moveTo(assigns);
+            status = check();
+            if(status == l_False) {
+                enumerateModels(count);
+            }
+        }
+    }
+
+    return count > 0 ? l_True : l_False;
+}
+
+lbool Circumscription::solveDecisionQuery2() {
+    assert(decisionLevel() == 0);
+    assert(assumptions.size() == 0);
+    assert(checker == NULL);
+    assert(query != lit_Undef);
+    assert(!hasVisibleVars());
+    
+    trace(circ, 10, "Activate checker");
+    checker = new Checker(*this);
+    checker->addClause(~query);
+    
+    addClause(query);
+    
+    int softLitsAtZeroInChecker = 0;
+    
+    lbool status;
+    lbool statusChecker = l_Undef;
+    
+    for(;;) {
+//        if(assumptions.size() == 0) {
+//            while(softLitsAtZeroInChecker < checker->nAssigns()) {
+//                Lit lit = checker->assigned(softLitsAtZeroInChecker++);
+//                if(value(~lit) == l_False) continue;
+//                if(!data.has(~lit)) continue;
+//                if(!soft(~lit)) continue;
+//                
+//                assert(assumptions.size() == 0);
+//                assert(decisionLevel() == 0);
+//                
+//                trace(circ, 20, "Check " << lit << "@0 in checker");
+//                assumptions.push(~lit);
+//                status = solveWithBudget();
+//                if(status == l_Undef) return l_Undef;
+//                if(status == l_True) {
+//                    trace(circ, 25, "Query true in model with " << ~lit);
+//                    onModel();
+//                    return l_True;
+//                }
+//                assert(status == l_False);
+//                trace(circ, 25, "Query false in all models with " << ~lit << ": add " << lit << "@0");
+//                assumptions.clear();
+//                cancelUntil(0);
+//                addClause(lit);
+//            }
+//        }
+        
+        assert(decisionLevel() == 0);
+        if(assumptions.size() > 0) setConfBudget(10000);
+        status = solveWithBudget();
+        if(assumptions.size() > 0) {
+            budgetOff();
+            if(status == l_Undef && !asynch_interrupt) {
+                trace(circ, 40, "Cannot complete search within the budget: just add the blocking clause");
+                status = l_False;
+            }
+        }
+        if(status == l_Undef) return l_Undef;
+        if(status == l_True) {
+            statusChecker = check();
+            if(statusChecker == l_Undef) return l_Undef;
+            if(statusChecker == l_False) { onModel(); return l_True; }
+            assert(status == l_True);
+            trace(circ, 20, "Check failed!");
+            cancelUntil(0);
+            assumptions.clear();
+            for(int i = 0; i < groupLits.size(); i++) assumptions.push(checker->value(groupLits[i]) == l_True ? groupLits[i] : ~groupLits[i]);
+            for(int i = 0; i < weakLits.size(); i++) if(checker->value(weakLits[i]) == l_True) assumptions.push(weakLits[i]);
+            trace(circ, 30, "Set assumptions: " << assumptions);
+        }
+        else {
+            assert(status == l_False);
+            if(statusChecker == l_Undef) { ok = false; return l_False; }
+            assert(statusChecker == l_True);
+            learnClauseFromCounterModel();
+            statusChecker = l_Undef;
+            assumptions.clear();
+        }
+    }
+
+    return l_Undef;
+}
+
+lbool Circumscription::solveDecisionQuery3(int& count) {
+    assert(decisionLevel() == 0);
+    assert(assumptions.size() == 0);
+    assert(checker == NULL);
+    assert(query != lit_Undef);
+    assert(groupLits.size() == 0);
+    
+    trace(circ, 10, "Activate checker");
+    checker = new Checker(*this);
+    checker->addClause(~query);
+    
+    addClause(query);
+    
+    Checker previousSolver(*this);
+    vec<vec<Lit> > CMs;
+    vec<vec<Lit> > BCs;
+    
+    lbool status;
+    for(;;) {
+        status = solveWithBudget();
+        if(status == l_Undef) return l_Undef;
+        if(status == l_False) break;
+        assert(status == l_True);
+        status = check();
+        if(status == l_False) {
+            enumerateModels(count);
+            if(count == option_n) break;
+        }
+        else if(status == l_Undef) return l_Undef;
+        else {
+            assert(status == l_True);
+            trace(circ, 20, "Check failed!");
+            
+            CMs.push();
+            for(int i = 0; i < weakLits.size(); i++) if(checker->value(weakLits[i]) == l_False) CMs.last().push(~weakLits[i]); else CMs.last().push(weakLits[i]);
+            
+            BCs.push();
+            for(int i = 0; i < groupLits.size(); i++) BCs.last().push(checker->value(groupLits[i]) == l_False ? groupLits[i] : ~groupLits[i]);
+            for(int i = 0; i < weakLits.size(); i++) if(checker->value(weakLits[i]) == l_False) BCs.last().push(weakLits[i]);
+            trace(circ, 10, "Blocking clause from counter model: " << BCs.last());
+            cancelUntil(0);
+            addClause(BCs.last());
+        }
+    }
+    
+    if(count == 0) {
+        while(CMs.size() > 0) {
+            CMs.last().moveTo(previousSolver.assumptions);
+            CMs.pop();
+            
+            status = previousSolver.solveWithBudget();
+            if(status == l_True) {
+                previousSolver.assigns.copyTo(assigns);
+                status = check();
+                if(status == l_False) {
+                    enumerateModels(count);
+                    if(count == option_n) break;
+                }
+            }
+            
+            previousSolver.cancelUntil(0);
+            previousSolver.addClause_(BCs.last());
+            BCs.pop();
+        }
+    }
+
+    return count > 0 ? l_True : l_False;
 }
 
 lbool Circumscription::solveWithoutChecker(int& count) {
@@ -565,6 +791,11 @@ void Circumscription::setAssumptions() {
     int j = 0;
     for(int i = 0; i < softLits.size(); i++) {
         if(!soft(softLits[i])) continue;
+        if(value(softLits[i]) != l_Undef) {
+            trace(circ, 20, "Remove assigned soft literal: " << softLits[i]);
+            soft(softLits[i], false);
+            continue;
+        }
         softLits[j++] = softLits[i];
         assumptions.push(softLits[i]);
     }
@@ -748,7 +979,7 @@ lbool Circumscription::check() {
         if(value(weakLits[i]) == l_False) lits.push(weakLits[i]);
         else checker->assumptions.push(weakLits[i]);
     }
-    checker->addClause_(lits); // TODO: is this correct?
+    checker->addClause_(lits);
     return checker->solveWithBudget();
 }
 

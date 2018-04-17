@@ -20,6 +20,8 @@
 Glucose::IntOption option_n("MAIN", "n", "Number of desired solutions. Non-positive integers are interpreted as unbounded.", 1, Glucose::IntRange(0, INT32_MAX));
 Glucose::BoolOption option_print_model("MAIN", "print-model", "Print model if found.", true);
 
+Glucose::BoolOption pre("MAIN", "pre", "Completely turn on/off any preprocessing.", true);
+
 void premain() {
     signal(SIGINT, SIGINT_interrupt);
     signal(SIGTERM, SIGINT_interrupt);

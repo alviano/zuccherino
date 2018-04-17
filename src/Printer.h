@@ -52,6 +52,8 @@ public:
     void onModel();
     void onDone();
     
+    inline bool hasVisibleVars() const { return visible.size() > 0 || (!no_ids && lastVisibleVar > 0); } 
+    
 private:
     GlucoseWrapper& solver;
     char* buff;

@@ -77,6 +77,7 @@ void Printer::addVisible(Lit lit, const char* str, int len) {
     visible.last().lit = lit;
     visible.last().value = new char[len+1];
     strcpy(visible.last().value, str);
+    if(option_n != 1) solver.setFrozen(var(lit), true);
 }
 
 void Printer::onStart() {
@@ -104,7 +105,7 @@ void Printer::onModel() {
     }
     else {
         for(int i = 0, lits = 1; i < visible.size(); i++) {
-            assert(solver.model[var(visible[i].lit)] != l_Undef);
+            //assert(solver.model[var(visible[i].lit)] != l_Undef);
             assert(var(visible[i].lit) < solver.model.size());
             if(sign(visible[i].lit) ^ (solver.model[var(visible[i].lit)] != l_True)) continue;
             if(lits > 1) pretty_print(lit_sep, lits);
