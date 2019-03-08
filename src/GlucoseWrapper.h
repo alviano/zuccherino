@@ -24,35 +24,37 @@
 #include "Propagator.h"
 
 namespace zuccherino {
-    
+
 class GlucoseWrapper : public Glucose::SimpSolver {
 public:
     GlucoseWrapper();
     GlucoseWrapper(const GlucoseWrapper& init);
-    
+
     bool interrupted() const { return asynch_interrupt; }
-    
+
     void parse(gzFile in);
-    
+
     virtual Var newVar(bool polarity = true, bool dvar = true);
     virtual void onNewDecisionLevel(Lit lit);
-     
+
     void uncheckedEnqueueFromPropagator(Lit lit, Propagator* propagator);
     void uncheckedEnqueueFromPropagator(vec<Lit>& lits, Propagator* propagator);
-    
+
     using Glucose::SimpSolver::decisionLevel;
     using Glucose::SimpSolver::level;
     inline Lit assigned(int index) const { return trail[index]; }
     inline int assignedIndex(Var var) const { return trailPosition[var]; }
     inline int assignedIndex(Lit lit) const { return trailPosition[var(lit)]; }
-    
+
     bool eliminate(bool turn_off_elim);
     lbool solve();
     lbool solveWithBudget();
-    
+
     void copyModel();
     void onStart() { printer.onStart(); }
+    void onStartIteration() { printer.onStartIteration(); }
     void onModel() { printer.onModel(); }
+    void onDoneIteration() { printer.onDoneIteration(); }
     void onDone() { printer.onDone(); }
     void learnClauseFromModel();
 
@@ -63,13 +65,13 @@ public:
     virtual bool conflictPropagators(Glucose::vec<Lit>& conflict);
     virtual bool reasonPropagators(Lit lit, Glucose::vec<Lit>& reason);
     virtual bool reasonPropagators(Lit lit);
-    
+
     inline bool addEmptyClause() { vec<Lit> tmp; return addClause_(tmp); }
     inline void add(Propagator* ph) { assert(ph != NULL); propagators.push(ph); }
     bool activatePropagators();
-    
+
     inline void setId(const string& value) { id = value; }
-    
+
     inline bool hasVisibleVars() const { return printer.hasVisibleVars(); }
     inline void addVisible(Lit lit, const char* str, int len) { printer.addVisible(lit, str, len); }
     inline void setLastVisibleVar(int value) { printer.setLastVisibleVar(value); }
@@ -84,28 +86,28 @@ public:
     inline void setLitStart(const string& value) { printer.setLitStart(value); }
     inline void setLitSep(const string& value) { printer.setLitSep(value); }
     inline void setLitEnd(const string& value) { printer.setLitEnd(value); }
-    
+
 protected:
     vec<int> trailPosition;
     int nTrailPosition;
-    
+
     inline void setProlog(const string& value) { parserProlog.setId(value); }
     inline void setParser(Parser* p) { parser.set(p); }
     inline void setParser(char key, Parser* p) { parser.set(key, p); }
-    
+
 private:
     Printer printer;
     ParserSkip parserSkip;
     ParserProlog parserProlog;
     ParserClause parserClause;
     ParserHandler parser;
-    
+
     vec<Propagator*> propagators;
     vec<Lit> conflictFromPropagators;
     vec<Propagator*> reasonFromPropagators;
-    
+
     string id;
-    
+
     void updateTrailPositions();
 };
 

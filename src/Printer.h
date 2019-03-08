@@ -28,14 +28,14 @@ class Printer : public Parser {
 public:
     Printer(GlucoseWrapper& solver);
     virtual ~Printer();
-    
+
     virtual void parseAttach(Glucose::StreamBuffer& in);
     virtual void parse();
     virtual void parseDetach();
-    
+
     void addVisible(Lit lit, const char* str, int len);
     inline void setLastVisibleVar(int value) { lastVisibleVar = value; }
-    
+
     inline void setNoIds(bool value) { no_ids = value; }
     inline void setModelsUnknown(const string& value) { models_unknown = value; }
     inline void setModelsNone(const string& value) { models_none = value; }
@@ -47,22 +47,30 @@ public:
     inline void setLitStart(const string& value) { lit_start = value; }
     inline void setLitSep(const string& value) { lit_sep = value; }
     inline void setLitEnd(const string& value) { lit_end = value; }
-    
+
     void onStart();
+    void onStartIteration();
     void onModel();
+    void onDoneIteration();
     void onDone();
-    
-    inline bool hasVisibleVars() const { return visible.size() > 0 || (!no_ids && lastVisibleVar > 0); } 
-    
+
+    inline bool hasVisibleVars() const { return visible.size() > 0 || (!no_ids && lastVisibleVar > 0); }
+
 private:
     GlucoseWrapper& solver;
     char* buff;
-    
+
+    int iterationCount;
     int modelCount;
-    
+
     int lastVisibleVar;
-    
+
     bool no_ids;
+    string iterations_start;
+    string iterations_end;
+    string iteration_start;
+    string iteration_sep;
+    string iteration_end;
     string models_unknown;
     string models_none;
     string models_start;

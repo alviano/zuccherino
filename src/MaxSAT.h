@@ -97,6 +97,9 @@ private:
     void preprocess();
     
     void enumerateModels();
+    
+    lbool solveExperimental();
+    void sortSoftByWeight();
 
     inline void printLowerBound() const { cout << "o " << lowerBound << endl; }
     inline void printUpperBound() const { cout << "c " << upperBound << " ub" << endl; }

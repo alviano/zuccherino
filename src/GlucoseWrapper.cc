@@ -26,7 +26,7 @@ namespace zuccherino {
 
 #define trace_(level, msg) trace(solver, level, (id != "" ? "[" + id + "]": "") << msg)
 
-GlucoseWrapper::GlucoseWrapper() : nTrailPosition(0), printer(*this), parserClause(*this), parser(*this) { 
+GlucoseWrapper::GlucoseWrapper() : nTrailPosition(0), printer(*this), parserClause(*this), parser(*this) {
     setIncrementalMode();
     parserProlog.setId("cnf");
     parser.set('v', &printer);
@@ -68,7 +68,7 @@ bool GlucoseWrapper::eliminate(bool turn_off_elim) {
 
 lbool GlucoseWrapper::solve() {
     cancelUntil(0);
-    onStart();
+    onStartIteration();
 
     lbool status = l_Undef;
     lbool ret = l_False;
@@ -76,7 +76,7 @@ lbool GlucoseWrapper::solve() {
     for(;;) {
         status = solveWithBudget();
         if(status != l_True) break;
-        
+
         copyModel();
         onModel();
         ret = l_True;
@@ -84,9 +84,9 @@ lbool GlucoseWrapper::solve() {
         if(decisionLevel() == 0) break;
         learnClauseFromModel();
     }
-    
-    onDone();
-    
+
+    onDoneIteration();
+
     return ret;
 }
 
@@ -123,7 +123,7 @@ void GlucoseWrapper::learnClauseFromModel() {
     }
     trace_(10, "Blocking clause: " << lits);
     if(lits.size() == 0) { ok = false; return; }
-    
+
     cancelUntil(decisionLevel()-1);
     if (lits.size() == 1)
         uncheckedEnqueue(lits[0]);
@@ -175,7 +175,7 @@ bool GlucoseWrapper::activatePropagators() {
 }
 
 void GlucoseWrapper::updateTrailPositions() {
-    while(nTrailPosition < nAssigns()) { 
+    while(nTrailPosition < nAssigns()) {
         trace_(50, "Trail index of " << assigned(nTrailPosition) << "@" << level(var(assigned(nTrailPosition))) << " is " << nTrailPosition);
         trailPosition[var(assigned(nTrailPosition))] = nTrailPosition;
         nTrailPosition++;
@@ -185,7 +185,7 @@ void GlucoseWrapper::updateTrailPositions() {
 bool GlucoseWrapper::simplifyPropagators() {
     assert(decisionLevel() == 0);
     updateTrailPositions();
-    
+
     int n = nAssigns();
     for(int i = 0; i < propagators.size(); i++) {
         if(!propagators[i]->simplify()) return ok = false;
@@ -196,10 +196,10 @@ bool GlucoseWrapper::simplifyPropagators() {
 
 bool GlucoseWrapper::propagatePropagators() {
     if(decisionLevel() == 0) return simplifyPropagators();
-    
+
     assert(decisionLevel() > 0);
     updateTrailPositions();
-    
+
     int n = nAssigns();
     for(int i = 0; i < propagators.size(); i++) {
         if(!propagators[i]->propagate()) {
@@ -232,14 +232,14 @@ bool GlucoseWrapper::reasonPropagators(Lit lit) {
     assert(decisionLevel() != 0);
     assert(reason(var(lit)) == CRef_Undef);
     if(reasonFromPropagators[var(lit)] == NULL) return false;
-    
+
     vec<Lit> clause;
     reasonFromPropagators[var(lit)]->getReason(lit, clause);
-    
+
     assert(clause.size() > 0);
     assert(clause[0] == lit);
     assert(reason(var(clause[0])) == CRef_Undef);
-    
+
     for(int i = 1; i < clause.size(); i++) {
         Lit l = clause[i];
         assert(value(l) == l_False);

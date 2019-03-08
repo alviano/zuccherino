@@ -80,16 +80,16 @@ void ASP::HCCParser::parse() {
     assert(rec2.size() == 0);
     assert(nonRec.size() == 0);
     Glucose::StreamBuffer& in = this->in();
-    
+
     int id = parseInt(in);
     if(id < 0) cerr << "PARSE ERROR! Id of HCC must be nonnegative: " << static_cast<char>(*in) << endl, exit(3);
-            
+
     Glucose::readClause(in, solver, lits);
     if(lits.size() == 0) cerr << "PARSE ERROR! Expected one or more head atoms: " << static_cast<char>(*in) << endl, exit(3);
     for(int i = 0; i < lits.size(); i++) rec.push(var(lits[i]));
-    
+
     Glucose::readClause(in, solver, nonRec);
-    
+
     Glucose::readClause(in, solver, lits);
     for(int i = 0; i < lits.size(); i++) rec2.push(var(lits[i]));
     lits.clear();
@@ -151,10 +151,10 @@ ASP::~ASP() {
 
 bool ASP::interrupt() {
     GlucoseWrapper::interrupt();
-    if(model.size() == 0) return false;
-    printModel();
+    if(model.size() > 0) printModel();
+    onDoneIteration();
     onDone();
-    return true;
+    return model.size() > 0;
 }
 
 void ASP::addWeakLit(Lit lit, int64_t weight, int level) {
@@ -162,13 +162,13 @@ void ASP::addWeakLit(Lit lit, int64_t weight, int level) {
     assert(level >= 0);
     if(lit != lit_Undef) {
         assert(!data.has(lit) && !data.has(~lit));
-    
+
         data.push(*this, lit);
         this->weight(lit) = weight;
         this->level(lit) = level;
         softLits.push(lit);
     }
-    
+
     Level l;
     l.level = level;
     l.lowerBound = lit != lit_Undef ? 0 : weight;
@@ -183,7 +183,7 @@ void ASP::addWeakLit(Lit lit, int64_t weight, int level) {
         }
     }
     if(i == levels.size()) levels.push(l);
-    
+
     optimization = true;
 }
 
@@ -201,7 +201,7 @@ void ASP::addHCC(int hccId, vec<Var>& recHead, vec<Lit>& nonRecLits, vec<Var>& r
 
 void ASP::endProgram(int numberOfVariables) {
     while(nVars() < numberOfVariables) { newVar(); }
-    
+
     if(levels.size() == 0) {
         levels.push();
         levels.last().level = 0;
@@ -209,7 +209,7 @@ void ASP::endProgram(int numberOfVariables) {
         levels.last().upperBound = INT64_MAX;
     }
     for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
-    
+
     if(!activatePropagators()) return;
     if(!simplify()) return;
 }
@@ -238,7 +238,7 @@ lbool ASP::solveInternal() {
         if(status == l_True) updateUpperBound();
         cancelUntil(0);
     }
-    
+
     do{
         assert(levels.size() > 0);
         lbool status;
@@ -249,7 +249,7 @@ lbool ASP::solveInternal() {
             if(levels.last().lowerBound == levels.last().upperBound) break;
             status = solveWithBudget();
             if(status == l_Undef) return l_Undef;
-            if(status == l_True) { 
+            if(status == l_True) {
                 updateUpperBound();
                 limit = computeNextLimit(limit);
             }
@@ -257,7 +257,7 @@ lbool ASP::solveInternal() {
                 assert(status == l_False);
                 trace(asp, 2, "UNSAT! Conflict of size " << conflict.size());
                 trace(asp, 100, "Conflict: " << conflict);
-                
+
                 if(conflict.size() == 0) { ok = false; levels.last().lowerBound = levels.last().upperBound; limit = 1; continue; }
 
                 assert_msg(computeConflictWeight() == limit, "computeConflictWeight()=" << computeConflictWeight() << "; limit=" << limit << "; conflict=" << conflict);
@@ -267,7 +267,7 @@ lbool ASP::solveInternal() {
                 int64_t w = computeConflictWeight();
                 assert(w == limit);
                 addToLowerBound(w);
-                
+
                 assert(conflict.size() > 0);
                 trace(asp, 4, "Analyze conflict of size " << conflict.size() << " and weight " << w);
                 processConflict(w);
@@ -278,29 +278,29 @@ lbool ASP::solveInternal() {
         assert(levels.last().lowerBound == levels.last().upperBound);
 
         if(levels.last().upperBound == INT64_MAX) return l_False;
-        
+
         solved.push(levels.last());
         levels.pop();
     }while(levels.size() > 0);
-    
+
     assert(softLits.size() == 0);
 
     if(option_n == 1) printModel();
     else enumerateModels();
-    
+
     return l_True;
 }
 
 lbool ASP::solve() {
     assert(decisionLevel() == 0);
     assert(assumptions.size() == 0);
-    
-    onStart();
+
+    onStartIteration();
 
     lbool status = solveInternal();
-        
-    onDone();
-    
+
+    onDoneIteration();
+
     return status;
 }
 
@@ -396,13 +396,13 @@ void ASP::processConflict(int64_t weight) {
         this->level(softLits.last()) = levels.last().level;
         lits.push(~softLits.last());
     }
-    
+
     ccPropagator.addGreaterEqual(lits, bound);
 }
 
 void ASP::trimConflict() {
     cancelUntil(0);
-    
+
     if(conflict.size() <= 1) return;
 
     int counter = 0;
@@ -417,24 +417,24 @@ void ASP::trimConflict() {
         cancelUntil(0);
         if(conflict.size() <= 1) return;
     }while(assumptions.size() > conflict.size());
-    
+
     if(counter % 2 == 1) for(int i = 0; i < assumptions.size(); i++) conflict[i] = ~assumptions[i];
-    
+
     assert(conflict.size() > 1);
 }
 
 void ASP::shrinkConflict(int64_t limit) {
     cancelUntil(0);
     if(conflict.size() <= 1) return;
-    
+
     trimConflict();
 
     vec<Lit> core;
     conflict.moveTo(core);
-    
+
     vec<Lit> allAssumptions;
     for(int i = 0; i < core.size(); i++) allAssumptions.push(~core[i]);
-    
+
     assumptions.clear();
     const int progressionFrom = 1;
     int progression = progressionFrom;
@@ -448,23 +448,23 @@ void ASP::shrinkConflict(int64_t limit) {
         }
 
         trace(asp, 15, "Shrink: progress to " << progression << "; fixed = " << fixed);
-        
+
         int prec = assumptions.size();
         for(int i = assumptions.size(); i < fixed + progression; i++) {
             assert(i < allAssumptions.size());
             assumptions.push(allAssumptions[i]);
         }
-        
+
         if(solveWithBudget() == l_False) {
             trace(asp, 10, "Shrink: reduce to size " << conflict.size());
             progression = progressionFrom;
-            
+
             assumptions.moveTo(core);
             cancelUntil(0);
             trimConflict();
             core.moveTo(assumptions);
             conflict.moveTo(core);
-            
+
             int j = 0;
             for(int i = 0, k = core.size() - 1; i < prec; i++) {
                 if(k < 0) break;
@@ -474,7 +474,7 @@ void ASP::shrinkConflict(int64_t limit) {
             }
             assumptions.shrink_(assumptions.size() - j);
             fixed = assumptions.size();
-            
+
             j = 0;
             for(int i = 0, k = core.size() - 1; i < allAssumptions.size(); i++) {
                 if(k < 0) break;

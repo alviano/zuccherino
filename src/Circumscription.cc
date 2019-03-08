@@ -19,11 +19,13 @@
 
 #include <core/Dimacs.h>
 
+using std::make_pair;
+
 extern Glucose::IntOption option_n;
 extern Glucose::BoolOption option_print_model;
 
 Glucose::IntOption option_circ_wit("CIRC", "circ-wit", "Number of desired witnesses. Non-positive integers are interpreted as unbounded.", 1, Glucose::IntRange(0, INT32_MAX));
-Glucose::BoolOption option_circ_propagate_and_exit("CIRC", "circ-propagate-and-exit", "Just propagate and terminate.", false);
+Glucose::BoolOption option_circ_propagate_and_exit("CIRC", "circ-propagate", "Just propagate and terminate.", false);
 Glucose::IntOption option_circ_query_strat("CIRC", "circ-query-strat",
     "1: add the query to the theory and check models; "
     "2: try to answer the query on cardinality-minimal, then switch to 1; ",
@@ -43,22 +45,26 @@ _Circumscription::~_Circumscription() {
     for(int i = 0; i < hccs.size(); i++) delete hccs[i];
 }
 
-Circumscription::Circumscription() : _Circumscription(), queryParser(*this), weakParser(*this), groupParser(*this), endParser(*this), checker(NULL), query(lit_Undef) {
+Circumscription::Circumscription() : _Circumscription(), queryParser(*this), weakParser(*this), groupParser(*this), dynAddParser(*this), dynAssParser(*this), endParser(*this), checker(NULL), optimizer(NULL), query(lit_Undef) {
     setProlog("circ");
     setParser('q', &queryParser);
     setParser('w', &weakParser);
     setParser('g', &groupParser);
+    setParser('a', &dynAddParser);
+    setParser('s', &dynAssParser);
     setParser('n', &endParser);
 }
 
 Circumscription::~Circumscription() {
     delete checker;
+    delete optimizer;
 }
 
 bool Circumscription::interrupt() {
     GlucoseWrapper::interrupt();
-    if(model.size() == 0) return false;
-    onModel();
+    //if(model.size() == 0) return false;
+    //onModel();
+    onDoneIteration();
     onDone();
     return true;
 }
@@ -71,9 +77,9 @@ void Circumscription::setQuery(Lit lit) {
 void Circumscription::addGroupLit(Lit lit) {
     assert(lit != lit_Undef);
     assert(!data.has(lit) && !data.has(~lit));
-    
+
     data.push(*this, lit);
-    
+
     group(lit, true);
     groupLits.push(lit);
 }
@@ -83,12 +89,22 @@ void Circumscription::addWeakLit(Lit lit) {
     assert(!data.has(lit) && !data.has(~lit));
 
     data.push(*this, lit);
-    
+
     weak(lit, true);
     weakLits.push(lit);
-    
+
     soft(lit, true);
     softLits.push(lit);
+}
+
+void Circumscription::dynAdd(vec<Lit>& lits) {
+    dyn.push_back(make_pair(DYN_ADD, vector<Lit>()));
+    for(int i = 0; i < lits.size(); i++) dyn.back().second.push_back(lits[i]);
+}
+
+void Circumscription::dynAss(vec<Lit>& lits) {
+    dyn.push_back(make_pair(DYN_ASS, vector<Lit>()));
+    for(int i = 0; i < lits.size(); i++) dyn.back().second.push_back(lits[i]);
 }
 
 void _Circumscription::addSP(Var atom, Lit body, vec<Var>& rec) {
@@ -105,7 +121,7 @@ void _Circumscription::addHCC(int hccId, vec<Var>& recHead, vec<Lit>& nonRecLits
 
 void _Circumscription::endProgram(int numberOfVariables) {
     while(nVars() < numberOfVariables) { newVar(); if(option_n != 1) setFrozen(nVars()-1, true); }
-    
+
     if(!activatePropagators()) return;
     if(!simplify()) return;
 }
@@ -121,6 +137,7 @@ void Circumscription::endProgram(int numberOfVariables) {
     }
     for(int i = 0; i < groupLits.size(); i++) setFrozen(var(groupLits[i]), true);
     for(int i = 0; i < softLits.size(); i++) setFrozen(var(softLits[i]), true);
+    for(auto x : dyn) for(auto lit : x.second) setFrozen(var(lit), true);
     _Circumscription::endProgram(numberOfVariables);
 }
 
@@ -128,139 +145,182 @@ lbool Circumscription::solve() {
     assert(decisionLevel() == 0);
     assert(assumptions.size() == 0);
     assert(checker == NULL);
-    
+    assert(optimizer == NULL);
+
     onStart();
-    
-    int count = 0;
-    lbool status = l_Undef;
-    if(!ok) status = l_False;
-    else if(option_circ_propagate_and_exit) { propagate(); copyModel(); onModel(); }
-    //else if(query != lit_Undef && !hasVisibleVars()) status = solveDecisionQuery2();
-    else if(query == lit_Undef || (data.has(query) && (soft(query) || group(query))) || (data.has(~query) && group(~query))) {
-        trace(circ, 10, "No checker is required!");
-        status = solveWithoutChecker(count);
+
+    lbool res = l_Undef;
+
+    if(dyn.size() == 0) {
+        trace(circ, 5, "Configuring solver for single iteration!");
+        dyn.push_back(make_pair(DYN_ASS, vector<Lit>()));
     }
     else {
-        switch(option_circ_query_strat) {
-        case 1: status = solve1(count); break;
-        case 2: status = solve2(count); break;
-        default: exit(-1); break;
-        }
-    }
-    
-    onDone();
-    
-    return status;
-}
+        trace(circ, 5, "Configuring solver for multiple iterations!");
+        assert(checker == NULL);
+        assert(optimizer == NULL);
 
-lbool Circumscription::solveDecisionQuery(int& count) {
-    assert(decisionLevel() == 0);
-    assert(assumptions.size() == 0);
-    assert(checker == NULL);
-    assert(query != lit_Undef);
-    assert(groupLits.size() == 0);
-    
-    trace(circ, 10, "Activate checker");
-    checker = new Checker(*this);
-    checker->addClause(~query);
-    
-    addClause(query);
-    
-    Checker previousSolver(*this);
-    vec<Lit> lastCM;
-    vec<Lit> lastBC;
-    
-    lbool status;
-    for(;;) {
-        status = solveWithBudget();
-        cerr << status << trail<<trail_lim<<endl;
-        if(status == l_Undef) return l_Undef;
-        if(status == l_False) break;
-        assert(status == l_True);
-        status = check();
-        if(status == l_False) {
-            enumerateModels(count);
-            if(count == option_n) break;
+        if(option_circ_propagate_and_exit || query == lit_Undef || (softLits.size() == 0 and groupLits.size() == 0) || (data.has(query) && (soft(query) || group(query))) || (data.has(~query) && group(~query))) {
+            trace(circ, 10, "No checker is required!");
         }
-        else if(status == l_Undef) return l_Undef;
         else {
-            assert(status == l_True);
-            trace(circ, 20, "Check failed!");
-            
-            lastCM.clear();
-            for(int i = 0; i < weakLits.size(); i++) if(checker->value(weakLits[i]) == l_False) lastCM.push(~weakLits[i]); else lastCM.push(weakLits[i]);
-            
-            if(lastBC.size() > 0) previousSolver.addClause_(lastBC);
-            lastBC.clear();
-            for(int i = 0; i < groupLits.size(); i++) lastBC.push(checker->value(groupLits[i]) == l_False ? groupLits[i] : ~groupLits[i]);
-            for(int i = 0; i < weakLits.size(); i++) if(checker->value(weakLits[i]) == l_False) lastBC.push(weakLits[i]);
-            trace(circ, 10, "Blocking clause from counter model: " << lastBC);
-            cancelUntil(0);
-            addClause(lastBC);
+            trace(circ, 10, "Activate checker");
+            checker = new Checker(*this);
+            if(query != lit_Undef) checker->addClause(~query);
+        }
+
+        if(query != lit_Undef) addClause(query);
+
+        if(not option_circ_propagate_and_exit and hasVisibleVars() and (softLits.size() > 0 or groupLits.size() > 0)) {
+            trace(circ, 10, "Activate optimizer");
+            optimizer = new Checker(*this);
+            optimizer->addClause(query);
+        }
+        else {
+            trace(circ, 10, "No optimizer is required!");
         }
     }
-    
-    if(count == 0 && lastCM.size() > 0) {
-        lastCM.moveTo(previousSolver.assumptions);
-        status = previousSolver.solveWithBudget();
-        if(status == l_True) {
-            previousSolver.assigns.moveTo(assigns);
-            status = check();
-            if(status == l_False) {
-                enumerateModels(count);
+
+    for(auto iteration : dyn) {
+        cancelUntil(0);
+        if(checker != NULL) checker->cancelUntil(0);
+        if(optimizer != NULL) optimizer->cancelUntil(0);
+
+        if(iteration.first == DYN_ADD) {
+            vec<Lit> lits;
+            for(auto lit : iteration.second) lits.push(lit);
+            trace(circ, 10, "Add clause " << lits);
+            addClause(lits);
+            if(checker != NULL) checker->addClause(lits);
+            if(optimizer != NULL) optimizer->addClause(lits);
+            continue;
+        }
+
+        assert(iteration.first == DYN_ASS);
+        onStartIteration();
+
+        lbool status = l_Undef;
+        int count = 0;
+
+        assumptions.clear();
+        if(!iteration.second.empty()) {
+            newVar();
+            if(checker != NULL) checker->newVar();
+            if(optimizer != NULL) optimizer->newVar();
+            assumptions.push(mkLit(nVars()-1));
+            for(auto lit : iteration.second) {
+                addClause(~mkLit(nVars()-1), lit);
+                if(checker != NULL) checker->addClause(~mkLit(checker->nVars()-1), lit);
+                assert(checker == NULL or checker->nVars() == nVars());
+                if(optimizer != NULL) optimizer->addClause(~mkLit(optimizer->nVars()-1), lit);
+                assert(optimizer == NULL or optimizer->nVars() == nVars());
             }
         }
+        dynAssumptions = assumptions.size();
+        trace(circ, 10, "Set dynamic assumptions " << assumptions);
+
+        if(!ok) status = l_False;
+        else if(option_circ_propagate_and_exit) {
+            if(propagate() != CRef_Undef) goto next;
+            if(assumptions.size() > 0) {
+                newDecisionLevel();
+                for(int i = 0; i < assumptions.size(); i++) {
+                    if(value(assumptions[i]) == l_False) goto next;
+                    if(value(assumptions[i]) == l_Undef) uncheckedEnqueue(assumptions[i]);
+                }
+                if(propagate() != CRef_Undef) goto next;
+            }
+            copyModel();
+            onModel();
+        }
+        else if(dyn.size() > 1) status = solveDyn(count);
+        else if(query != lit_Undef && !hasVisibleVars()) status = solveDecisionQuery();
+        else if(query == lit_Undef || (softLits.size() == 0 and groupLits.size() == 0) || (data.has(query) && (soft(query) || group(query))) || (data.has(~query) && group(~query))) {
+            trace(circ, 10, "No checker is required!");
+            status = solveWithoutChecker(count);
+        }
+        else {
+            switch(option_circ_query_strat) {
+                case 1: status = solve1(count); break;
+                case 2: status = solve2(count); break;
+                default: exit(-1); break;
+            }
+        }
+
+        next:
+
+        if(status == l_True) res = l_True;
+        else if(status == l_False and res == l_Undef) res = l_False;
+
+        if(!iteration.second.empty()) {
+            cancelUntil(0); addClause(~mkLit(nVars()-1));
+            if(checker != NULL) { checker->cancelUntil(0); checker->addClause(~mkLit(checker->nVars()-1)); }
+            if(optimizer != NULL) { optimizer->cancelUntil(0); optimizer->addClause(~mkLit(optimizer->nVars()-1)); }
+        }
+
+        onDoneIteration();
     }
 
-    return count > 0 ? l_True : l_False;
+    onDone();
+
+    return res;
 }
 
-lbool Circumscription::solveDecisionQuery2() {
+lbool Circumscription::solveDecisionQuery() {
+    assert(dynAssumptions == 0);
     assert(decisionLevel() == 0);
     assert(assumptions.size() == 0);
-    assert(checker == NULL);
     assert(query != lit_Undef);
     assert(!hasVisibleVars());
-    
-    trace(circ, 10, "Activate checker");
-    checker = new Checker(*this);
-    checker->addClause(~query);
-    
-    addClause(query);
-    
+
+    if(checker == NULL) {
+        trace(circ, 10, "Activate checker");
+        checker = new Checker(*this);
+        checker->addClause(~query);
+
+        addClause(query);
+    }
+
+    checker->cancelUntil(0);
+    checker->assumptions.clear();
+    assumptions.copyTo(checker->assumptions);
+
     int softLitsAtZeroInChecker = 0;
-    
+
     lbool status;
     lbool statusChecker = l_Undef;
-    
+
     for(;;) {
-//        if(assumptions.size() == 0) {
-//            while(softLitsAtZeroInChecker < checker->nAssigns()) {
-//                Lit lit = checker->assigned(softLitsAtZeroInChecker++);
-//                if(value(~lit) == l_False) continue;
-//                if(!data.has(~lit)) continue;
-//                if(!soft(~lit)) continue;
-//                
-//                assert(assumptions.size() == 0);
-//                assert(decisionLevel() == 0);
-//                
-//                trace(circ, 20, "Check " << lit << "@0 in checker");
-//                assumptions.push(~lit);
-//                status = solveWithBudget();
-//                if(status == l_Undef) return l_Undef;
-//                if(status == l_True) {
-//                    trace(circ, 25, "Query true in model with " << ~lit);
-//                    onModel();
-//                    return l_True;
-//                }
-//                assert(status == l_False);
-//                trace(circ, 25, "Query false in all models with " << ~lit << ": add " << lit << "@0");
-//                assumptions.clear();
-//                cancelUntil(0);
-//                addClause(lit);
-//            }
-//        }
-        
+        // check lits @0 in the checker, but with a very limited budget
+        if(assumptions.size() == 0) {
+            while(softLitsAtZeroInChecker < checker->nAssigns()) {
+                Lit lit = checker->assigned(softLitsAtZeroInChecker++);
+                if(value(~lit) == l_False) continue;
+                if(!data.has(~lit)) continue;
+                if(!soft(~lit)) continue;
+
+                assert(assumptions.size() == 0);
+                assert(decisionLevel() == 0);
+
+                trace(circ, 20, "Check " << lit << "@0 in checker");
+                assumptions.push(~lit);
+                setConfBudget(100);
+                status = solveWithBudget();
+                budgetOff();
+                if(status == l_Undef) return l_Undef;
+                if(status == l_True) {
+                    trace(circ, 25, "Query true in model with " << ~lit);
+                    onModel();
+                    return l_True;
+                }
+                assert(status == l_False);
+                trace(circ, 25, "Query false in all models with " << ~lit << ": add " << lit << "@0");
+                assumptions.clear();
+                cancelUntil(0);
+                addClause(lit);
+            }
+        }
+
         assert(decisionLevel() == 0);
         if(assumptions.size() > 0) setConfBudget(10000);
         status = solveWithBudget();
@@ -276,7 +336,7 @@ lbool Circumscription::solveDecisionQuery2() {
             statusChecker = check();
             if(statusChecker == l_Undef) return l_Undef;
             if(statusChecker == l_False) { onModel(); return l_True; }
-            assert(status == l_True);
+            assert(statusChecker == l_True);
             trace(circ, 20, "Check failed!");
             cancelUntil(0);
             assumptions.clear();
@@ -286,7 +346,10 @@ lbool Circumscription::solveDecisionQuery2() {
         }
         else {
             assert(status == l_False);
-            if(statusChecker == l_Undef) { ok = false; return l_False; }
+            if(statusChecker == l_Undef) {
+                if(assumptions.size() == 0) ok = false;
+                return l_False;
+            }
             assert(statusChecker == l_True);
             learnClauseFromCounterModel();
             statusChecker = l_Undef;
@@ -297,69 +360,70 @@ lbool Circumscription::solveDecisionQuery2() {
     return l_Undef;
 }
 
-lbool Circumscription::solveDecisionQuery3(int& count) {
+lbool Circumscription::solveDyn(int& count) {
     assert(decisionLevel() == 0);
-    assert(assumptions.size() == 0);
-    assert(checker == NULL);
-    assert(query != lit_Undef);
-    assert(groupLits.size() == 0);
-    
-    trace(circ, 10, "Activate checker");
-    checker = new Checker(*this);
-    checker->addClause(~query);
-    
-    addClause(query);
-    
-    Checker previousSolver(*this);
-    vec<vec<Lit> > CMs;
-    vec<vec<Lit> > BCs;
-    
-    lbool status;
-    for(;;) {
-        status = solveWithBudget();
-        if(status == l_Undef) return l_Undef;
-        if(status == l_False) break;
-        assert(status == l_True);
-        status = check();
-        if(status == l_False) {
-            enumerateModels(count);
-            if(count == option_n) break;
-        }
-        else if(status == l_Undef) return l_Undef;
-        else {
-            assert(status == l_True);
-            trace(circ, 20, "Check failed!");
-            
-            CMs.push();
-            for(int i = 0; i < weakLits.size(); i++) if(checker->value(weakLits[i]) == l_False) CMs.last().push(~weakLits[i]); else CMs.last().push(weakLits[i]);
-            
-            BCs.push();
-            for(int i = 0; i < groupLits.size(); i++) BCs.last().push(checker->value(groupLits[i]) == l_False ? groupLits[i] : ~groupLits[i]);
-            for(int i = 0; i < weakLits.size(); i++) if(checker->value(weakLits[i]) == l_False) BCs.last().push(weakLits[i]);
-            trace(circ, 10, "Blocking clause from counter model: " << BCs.last());
-            cancelUntil(0);
-            addClause(BCs.last());
-        }
+    assert(assumptions.size() == dynAssumptions);
+
+    if(checker != NULL) {
+        checker->cancelUntil(0);
+        checker->assumptions.clear();
+        assumptions.copyTo(checker->assumptions);
     }
-    
-    if(count == 0) {
-        while(CMs.size() > 0) {
-            CMs.last().moveTo(previousSolver.assumptions);
-            CMs.pop();
-            
-            status = previousSolver.solveWithBudget();
-            if(status == l_True) {
-                previousSolver.assigns.copyTo(assigns);
-                status = check();
-                if(status == l_False) {
-                    enumerateModels(count);
-                    if(count == option_n) break;
-                }
+
+    if(optimizer != NULL) {
+        optimizer->cancelUntil(0);
+        optimizer->assumptions.clear();
+        assumptions.copyTo(optimizer->assumptions);
+    }
+
+    int softLitsAtZeroInChecker = 0;
+
+    for(;;) {
+        lbool status;
+        lbool statusChecker = l_Undef;
+
+        assert(decisionLevel() <= dynAssumptions);
+        if(assumptions.size() > dynAssumptions) setConfBudget(10000);
+        status = solveWithBudget();
+        trace(circ, 20, "Solver status is " << status);
+        if(assumptions.size() > dynAssumptions) {
+            budgetOff();
+            if(status == l_Undef && !asynch_interrupt) {
+                trace(circ, 40, "Cannot complete search within the budget: just add the blocking clause");
+                status = l_False;
             }
-            
-            previousSolver.cancelUntil(0);
-            previousSolver.addClause_(BCs.last());
-            BCs.pop();
+        }
+        if(status == l_Undef) return l_Undef;
+        if(status == l_True) {
+            statusChecker = check();
+            trace(circ, 25, "Checker status is " << statusChecker);
+            if(statusChecker == l_Undef) return l_Undef;
+            if(statusChecker == l_False) {
+                if(!hasVisibleVars()) { onModel(); return l_True; }
+                enumerateModels(count);
+                if(count == option_n) break;
+                continue;
+            }
+            assert(statusChecker == l_True);
+            assert(checker != NULL);
+            trace(circ, 20, "Check failed!");
+            cancelUntil(dynAssumptions);
+            assumptions.shrink_(assumptions.size() - dynAssumptions);
+            for(int i = 0; i < groupLits.size(); i++) assumptions.push(checker->value(groupLits[i]) == l_True ? groupLits[i] : ~groupLits[i]);
+            for(int i = 0; i < weakLits.size(); i++) if(checker->value(weakLits[i]) == l_True) assumptions.push(weakLits[i]);
+            trace(circ, 30, "Set assumptions: " << assumptions);
+        }
+        else {
+            assert(status == l_False);
+            if(statusChecker == l_Undef) {
+                if(assumptions.size() == 0) ok = false;
+                if(!hasVisibleVars()) return l_False;
+                break;
+            }
+            assert(statusChecker == l_True);
+            learnClauseFromCounterModel();
+            statusChecker = l_Undef;
+            assumptions.shrink_(assumptions.size() - dynAssumptions);
         }
     }
 
@@ -368,11 +432,11 @@ lbool Circumscription::solveDecisionQuery3(int& count) {
 
 lbool Circumscription::solveWithoutChecker(int& count) {
     assert(decisionLevel() == 0);
-    assert(assumptions.size() == 0);
+    assert(assumptions.size() == dynAssumptions);
     assert(checker == NULL);
-    
+
     if(query != lit_Undef) addClause(query);
-    
+
     lbool status;
     int conflicts = 0;
     for(;;) {
@@ -391,11 +455,11 @@ lbool Circumscription::solve1(int& count) {
     assert(assumptions.size() == 0);
     assert(checker == NULL);
     assert(query != lit_Undef);
-    
+
     trace(circ, 10, "Activate checker");
     checker = new Checker(*this);
     addClause(query);
-    
+
     lbool status;
     int conflicts = 0;
     for(;;) {
@@ -421,10 +485,10 @@ lbool Circumscription::solve2(int& count) {
     assert(assumptions.size() == 0);
     assert(checker == NULL);
     assert(query != lit_Undef);
-    
+
     trace(circ, 10, "Activate checker");
     checker = new Checker(*this);
-    
+
     int conflicts = 0;
     lbool status = processConflictsUntilModel(conflicts);
     if(status != l_True) return status;
@@ -432,7 +496,7 @@ lbool Circumscription::solve2(int& count) {
     cancelUntil(0);
 
     addClause(query);
-    
+
     for(;;) {
         status = processConflictsUntilModel(conflicts);
         if(status == l_Undef) return l_Undef;
@@ -454,324 +518,18 @@ lbool Circumscription::solve2(int& count) {
     return count > 0 ? l_True : l_False;
 }
 
-Circumscription::MHS::MHS(const vec<Lit>& objLits_) {
-    for(int i = 0; i < objLits_.size(); i++) {
-        objLits.push(objLits_[i]);
-        while(nVars() <= var(objLits[i])) newVar();
-        setFrozen(var(objLits[i]), true);
-        data.push(*this, objLits[i]);
-        last(objLits[i]) = objLits[i];
-    }
-    newVar();
-    verum = mkLit(nVars()-1);
-    addClause(verum);
-}
-
-void Circumscription::MHS::addSet(const vec<Lit>& lits) {
-    assert(decisionLevel() == 0);
-    
-    trace(circ, 10, "Add set: " << lits);
-    
-    vec<Lit> tmp;
-    
-    vec<Lit> curr, left, right;
-    for(int i = 0; i < lits.size(); i++) {
-        newVar();
-        curr.push(mkLit(nVars()-1));
-        
-        if(i != lits.size()-1) {
-            newVar();
-            left.push(mkLit(nVars()-1));
-        }
-        else left.push(~verum);
-        
-        if(i != 0) {
-            newVar();
-            right.push(mkLit(nVars()-1));
-        }
-        else right.push(~verum);
-    }
-    
-    for(int i = 0; i < lits.size(); i++) {
-        addClause(~curr[i], ~left[i]);
-        addClause(~curr[i], ~right[i]);
-        addClause(curr[i], left[i], right[i]);
-    }
-    
-    for(int i = 0; i < lits.size()-1; i++) {
-        addClause(~left[i], left[i+1], last(lits[i+1]));
-        addClause(left[i], ~left[i+1]);
-        addClause(left[i], ~last(lits[i+1]));
-    }
-    
-    for(int i = 1; i < lits.size(); i++) {
-        addClause(~right[i], right[i-1], last(lits[i-1]));
-        addClause(right[i], ~right[i-1]);
-        addClause(right[i], ~last(lits[i-1]));
-    }
-    
-    for(int i = 0; i < lits.size(); i++) {
-        newVar();
-        addClause(~last(lits[i]), curr[i], mkLit(nVars()-1));
-        addClause(last(lits[i]), ~curr[i]);
-        addClause(last(lits[i]), ~mkLit(nVars()-1));
-        last(lits[i]) = mkLit(nVars()-1);
-    }
-}
-        
-lbool Circumscription::MHS::compute(vec<Lit>& in, vec<Lit>& out, bool& withConflict) {
-    assert(decisionLevel() == 0);
-    
-    in.clear();
-    out.clear();
-    withConflict = false;
-
-    assumptions.clear();
-    for(int i = 0; i < objLits.size(); i++) assumptions.push(~last(objLits[i]));
-    for(;;) {
-        lbool res = solveWithBudget();
-        if(res == l_True) break;
-        if(res == l_Undef) return res;
-        assert(res == l_False);
-        if(conflict.size() == 0) return res;
-        withConflict = true;
-        for(int i = assumptions.size() - 1; i >= 0; i--) {
-            if(assumptions[i] == ~conflict[0]) {
-                while(++i < assumptions.size()) { assumptions[i-1] = assumptions[i]; }
-                assumptions.shrink(1);
-                break;
-            }
-        }
-    }
-    
-    for(int i = 0; i < objLits.size(); i++) {
-        if(value(objLits[i]) == l_True) in.push(objLits[i]);
-        else out.push(objLits[i]);
-    }
-    
-    cancelUntil(0);
-    
-    return l_True;
-}
-
-void Circumscription::MHS::getConflict(vec<Lit>& lits) {
-    lits.clear();
-    if(conflict.size() == 0) return;
-    
-    for(int i = 0, j = conflict.size() - 1; i < objLits.size(); i++) {
-        if(last(objLits[i]) != conflict[j]) continue;
-        lits.push(objLits[i]);
-        if(--j < 0) break; 
-    }
-}
-
-lbool Circumscription::solve3(int& count) {
-    assert(decisionLevel() == 0);
-    assert(assumptions.size() == 0);
-    assert(checker == NULL);
-    assert(query != lit_Undef);
-    
-    trace(circ, 10, "Activate checker");
-    checker = new Checker(*this);
-    
-    MHS mhs(weakLits);
-    vec<Lit> in, out;
-    
-    lbool status;
-    bool withConflict;
-    for(;;) {
-        status = mhs.compute(in, out, withConflict);
-        trace(circ, 10, "MHS: " << in << " " << out);
-        if(status == l_False) { cancelUntil(0); addEmptyClause(); break; }
-        if(status == l_Undef) break;
-        
-        out.moveTo(assumptions);
-        assumptions.push(query);
-        
-        cancelUntil(0);
-        status = solveWithBudget();
-        
-        if(status == l_Undef) break;
-        
-        if(status == l_True) {
-            if(withConflict) {
-                cout << "MUST BE CHECKED " << endl;
-                status = check();
-                if(status == l_Undef) return l_Undef;
-                if(status == l_True) learnClauseFromCounterModel();
-                else {
-                    assert(status == l_False);
-                    enumerateModels(count);
-                    if(count == option_n) break;
-                }
-            }
-            continue;
-        }
-        
-        trace(circ, 2, "UNSAT! Conflict of size " << conflict.size());
-        trace(circ, 100, "Conflict: " << conflict);
-        
-        conflicts++;
-        if(conflict.size() == 0) { cancelUntil(0); addEmptyClause(); break; }
-
-        shrinkConflict();
-        trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
-
-        if(conflict.size() == 0) { cancelUntil(0); addEmptyClause(); break; }
-        
-        if(conflict[0] == ~query) {
-            if(conflict.size() == 1) { cancelUntil(0); addEmptyClause(); break; }
-            
-            assumptions.clear();
-            while(conflict.size() > 1) { assumptions.push(~conflict.last()); conflict.pop(); }
-            status = solveWithBudget();
-            if(status == l_Undef) break;
-            if(status == l_True) {
-                trace(circ, 10, "Add clause to MHS: " << assumptions);
-                mhs.addClause_(assumptions);
-
-                continue;
-            }
-        }
-        
-        trace(circ, 4, "Analyze conflict of size " << conflict.size());
-        in.clear();
-        for(int i = 0; i < conflict.size(); i++) in.push(~conflict[i]);
-        mhs.addSet(in);
-    }
-
-    return count > 0 ? l_True : l_False;
-}
-
-lbool Circumscription::solve4(int& count) {
-    assert(decisionLevel() == 0);
-    assert(assumptions.size() == 0);
-    assert(query != lit_Undef);
-    
-    MHS mhs(weakLits);
-    vec<Lit> in, out;
-    
-    // REMOVE ME
-    checker = new Checker(*this);
-    
-    lbool status;
-    bool withConflict;
-    for(;;) {
-        status = mhs.compute(in, out, withConflict);
-        trace(circ, 10, "MHS: " << in << " " << out);
-        if(status == l_False) cerr << mhs.conflict << endl;
-        if(status == l_False) { cancelUntil(0); addEmptyClause(); break; }
-        if(status == l_Undef) break;
-        
-        out.copyTo(assumptions);
-        assumptions.push(query);
-        cancelUntil(0);
-        trace(circ, 15, "Assumptions: " << assumptions);
-        status = solveWithBudget();
-        
-        if(status == l_Undef) break;
-        
-        if(status == l_True) {
-            enumerateModels(count);
-            if(count == option_n) break;
-            continue;
-        }
-        
-        trace(circ, 2, "UNSAT! Conflict of size " << conflict.size());
-        trace(circ, 100, "Conflict: " << conflict);
-        
-        conflicts++;
-        if(conflict.size() == 0) { cancelUntil(0); addEmptyClause(); break; }
-
-        shrinkConflict();
-        trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
-
-        if(conflict.size() == 0) { cancelUntil(0); addEmptyClause(); break; }
-        if(conflict.size() == 1 && conflict[0] == ~query) { cancelUntil(0); addEmptyClause(); break; }
-        
-        if(conflict[0] == ~query) {
-            out.moveTo(assumptions);
-            status = solveWithBudget();
-            if(status == l_Undef) break;
-            if(status == l_True) {
-                copyModel();
-                
-                assert(check() == l_False);
-                
-                learnClauseFromModel();
-                continue;
-            }
-        }
-        
-        trace(circ, 4, "Analyze conflict of size " << conflict.size());
-        in.clear();
-        for(int i = 0; i < conflict.size(); i++) in.push(~conflict[i]);
-        mhs.addSet(in);
-    }
-
-    return count > 0 ? l_True : l_False;
-}
-
-lbool Circumscription::solve5(int& count) {
-    assert(decisionLevel() == 0);
-    assert(assumptions.size() == 0);
-    assert(query == lit_Undef);
-    
-    MHS mhs(weakLits);
-    vec<Lit> in, out;
-    
-    lbool status;
-    bool withConflict;
-    for(;;) {
-        status = mhs.compute(in, out, withConflict);
-        trace(circ, 10, "MHS: " << in << " " << out);
-        if(status == l_False) { cancelUntil(0); addEmptyClause(); break; }
-        if(status == l_Undef) break;
-        
-        out.moveTo(assumptions);
-        cancelUntil(0);
-        trace(circ, 15, "Assumptions: " << assumptions);
-        status = solveWithBudget();
-        
-        if(status == l_Undef) break;
-        
-        if(status == l_True) {
-            enumerateModels(count);
-            if(count == option_n) break;
-            continue;
-        }
-        
-        trace(circ, 2, "UNSAT! Conflict of size " << conflict.size());
-        trace(circ, 100, "Conflict: " << conflict);
-        
-        conflicts++;
-        if(conflict.size() == 0) { cancelUntil(0); addEmptyClause(); break; }
-
-        shrinkConflict();
-        trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
-
-        if(conflict.size() == 0) { cancelUntil(0); addEmptyClause(); break; }
-        
-        in.clear();
-        for(int i = 0; i < conflict.size(); i++) in.push(~conflict[i]);
-        mhs.addSet(in);
-    }
-
-    return count > 0 ? l_True : l_False;
-}
-
 lbool Circumscription::processConflictsUntilModel(int& conflicts) {
     lbool status;
     for(;;) {
         setAssumptions();
         assert(decisionLevel() == 0);
         status = solveWithBudget();
-        
+
         if(status != l_False) return status;
-        
+
         trace(circ, 2, "UNSAT! Conflict of size " << conflict.size());
         trace(circ, 100, "Conflict: " << conflict);
-        
+
         conflicts++;
         if(conflict.size() == 0) return l_False;
 
@@ -786,6 +544,7 @@ lbool Circumscription::processConflictsUntilModel(int& conflicts) {
 }
 
 void Circumscription::setAssumptions() {
+    assert(dynAssumptions == 0);
     cancelUntil(0);
     assumptions.clear();
     int j = 0;
@@ -803,6 +562,7 @@ void Circumscription::setAssumptions() {
 }
 
 void Circumscription::processConflict() {
+    assert(dynAssumptions == 0);
     assert(decisionLevel() == 0);
     assert(conflict.size() > 0);
     trace(circ, 10, "Use algorithm one");
@@ -822,18 +582,19 @@ void Circumscription::processConflict() {
         soft(softLits.last(), true);
         lits.push(~softLits.last());
     }
-    
+
     ccPropagator.addGreaterEqual(lits, bound);
 }
 
 void Circumscription::trimConflict() {
+    assert(dynAssumptions == 0);
     cancelUntil(0);
-    
+
     if(conflict.size() <= 1) return;
 
     int counter = 0;
     lbool status = l_False;
-    
+
     do{
         counter++;
         assumptions.clear();
@@ -848,9 +609,9 @@ void Circumscription::trimConflict() {
         cancelUntil(0);
         if(conflict.size() <= 1) return;
     }while(assumptions.size() > conflict.size());
-    
+
     if(counter % 2 == 1) for(int i = 0; i < assumptions.size(); i++) conflict[i] = ~assumptions[i];
-    
+
     assert(conflict.size() > 1);
 }
 //
@@ -862,24 +623,25 @@ void Circumscription::trimConflict() {
 //
 //    vec<Lit> core;
 //    conflict.moveTo(core);
-//    
+//
 //    for(int i = 0; i < core.size(); i++) {
-//        
+//
 //    }
 //}
 
 void Circumscription::shrinkConflict() {
+    assert(dynAssumptions == 0);
     cancelUntil(0);
     if(conflict.size() <= 1) return;
-    
+
     trimConflict();
 
     vec<Lit> core;
     conflict.moveTo(core);
-    
+
     vec<Lit> allAssumptions;
     for(int i = 0; i < core.size(); i++) allAssumptions.push(~core[i]);
-    
+
     assumptions.clear();
     const int progressionFrom = 1;
     int progression = progressionFrom;
@@ -893,23 +655,23 @@ void Circumscription::shrinkConflict() {
         }
 
         trace(circ, 15, "Shrink: progress to " << progression << "; fixed = " << fixed);
-        
+
         int prec = assumptions.size();
         for(int i = assumptions.size(); i < fixed + progression; i++) {
             assert(i < allAssumptions.size());
             assumptions.push(allAssumptions[i]);
         }
-        
+
         if(solveWithBudget() == l_False) {
             trace(circ, 10, "Shrink: reduce to size " << conflict.size());
             progression = progressionFrom;
-            
+
             assumptions.moveTo(core);
             cancelUntil(0);
             trimConflict();
             core.moveTo(assumptions);
             for(int i = conflict.size()-1; i >= 0; i--) core.push(conflict[i]);
-            
+
             int j = 0;
             for(int i = 0, k = 0; i < prec; i++) {
                 if(k >= core.size()) break;
@@ -919,7 +681,7 @@ void Circumscription::shrinkConflict() {
             }
             assumptions.shrink_(assumptions.size() - j);
             fixed = assumptions.size();
-            
+
             j = 0;
             for(int i = 0, k = 0; i < allAssumptions.size(); i++) {
                 if(k >= core.size()) break;
@@ -939,19 +701,21 @@ void Circumscription::shrinkConflict() {
 }
 
 void Circumscription::enumerateModels(int& count) {
+    copyModel();
+    optimize();
+
     if(option_circ_wit == 1) {
         count++;
-        copyModel();
         onModel();
         learnClauseFromModel();
     }
     else {
-        assumptions.clear();
-        for(int i = 0; i < groupLits.size(); i++) assumptions.push(value(groupLits[i]) == l_True ? groupLits[i] : ~groupLits[i]);
-        for(int i = 0; i < weakLits.size(); i++) assumptions.push(value(weakLits[i]) == l_True ? weakLits[i] : ~weakLits[i]);
+        assumptions.shrink_(assumptions.size() - dynAssumptions);
+        for(int i = 0; i < groupLits.size(); i++) assumptions.push(modelValue(groupLits[i]) == l_True ? groupLits[i] : ~groupLits[i]);
+        for(int i = 0; i < weakLits.size(); i++) assumptions.push(modelValue(weakLits[i]) == l_True ? weakLits[i] : ~weakLits[i]);
         for(int i = 0; i < softLits.size(); i++) if(!weak(softLits[i])) assumptions.push(~softLits[i]);
-        cancelUntil(0);
-        
+        cancelUntil(dynAssumptions);
+
         int wit = 0;
         lbool status;
         while(solveWithBudget() == l_True) {
@@ -964,17 +728,19 @@ void Circumscription::enumerateModels(int& count) {
             if(decisionLevel() == assumptions.size()) break;
             GlucoseWrapper::learnClauseFromModel();
         }
-        assumptions.shrink_(assumptions.size() - groupLits.size() - weakLits.size());
+        assumptions.shrink_(assumptions.size() - dynAssumptions - groupLits.size() - weakLits.size());
         learnClauseFromAssumptions();
     }
 }
 
 lbool Circumscription::check() {
-    assert(checker != NULL);
+    if(checker == NULL) return l_False;
     checker->cancelUntil(0);
-    checker->assumptions.clear();
+    checker->assumptions.shrink_(checker->assumptions.size() - dynAssumptions);
     vec<Lit> lits;
+    for(int i = 0; i < dynAssumptions; i++) lits.push(~checker->assumptions[i]);
     for(int i = 0; i < groupLits.size(); i++) checker->assumptions.push(value(groupLits[i]) == l_False ? groupLits[i] : ~groupLits[i]);
+    // FIXME: group lits must also go on the clause
     for(int i = 0; i < weakLits.size(); i++) {
         if(value(weakLits[i]) == l_False) lits.push(weakLits[i]);
         else checker->assumptions.push(weakLits[i]);
@@ -983,10 +749,32 @@ lbool Circumscription::check() {
     return checker->solveWithBudget();
 }
 
+void Circumscription::optimize() {
+    if(optimizer == NULL) return;
+    for(;;) {
+        optimizer->cancelUntil(0);
+        optimizer->assumptions.shrink_(optimizer->assumptions.size() - dynAssumptions);
+        vec<Lit> lits;
+        for(int i = 0; i < dynAssumptions; i++) lits.push(~optimizer->assumptions[i]);
+        for(int i = 0; i < groupLits.size(); i++) optimizer->assumptions.push(modelValue(groupLits[i]) == l_False ? groupLits[i] : ~groupLits[i]);
+        // FIXME: group lits must also go on the clause
+        for(int i = 0; i < weakLits.size(); i++) {
+            if(modelValue(weakLits[i]) == l_False) lits.push(weakLits[i]);
+            else optimizer->assumptions.push(weakLits[i]);
+        }
+        trace(circ, 20, "Add clause to optimizer: " << lits);
+        optimizer->addClause_(lits);
+        if(optimizer->solveWithBudget() != l_True) return;
+        for (int i = 0; i < nVars(); i++) model[i] = optimizer->value(i);
+        Glucose::SimpSolver::extendModel();
+    }
+}
+
 void Circumscription::learnClauseFromAssumptions() {
-    assert(assumptions.size() == groupLits.size() + weakLits.size());
+    assert(assumptions.size() == dynAssumptions + groupLits.size() + weakLits.size());
     cancelUntil(0);
     vec<Lit> lits;
+    for(int i = 0; i < dynAssumptions; i++) lits.push(~assumptions[i]);
     for(int i = 0; i < groupLits.size(); i++) lits.push(~assumptions[i]);
     for(int i = 0; i < weakLits.size(); i++) if(weakLits[i] == ~assumptions[groupLits.size() + i]) lits.push(weakLits[i]);
     trace(circ, 10, "Blocking clause from assumptions: " << lits);
@@ -996,21 +784,17 @@ void Circumscription::learnClauseFromAssumptions() {
 void Circumscription::learnClauseFromModel() {
     cancelUntil(0);
     vec<Lit> lits;
+    for(int i = 0; i < dynAssumptions; i++) lits.push(~assumptions[i]);
     for(int i = 0; i < groupLits.size(); i++) lits.push(modelValue(groupLits[i]) == l_False ? groupLits[i] : ~groupLits[i]);
     for(int i = 0; i < weakLits.size(); i++) if(modelValue(weakLits[i]) == l_False) lits.push(weakLits[i]);
     trace(circ, 10, "Blocking clause from model: " << lits);
     addClause_(lits);
 }
 
-void Circumscription::learnClauseFromAssignment(vec<Lit>& lits) {
-    lits.clear();
-    for(int i = 0; i < groupLits.size(); i++) lits.push(value(groupLits[i]) == l_False ? groupLits[i] : ~groupLits[i]);
-    for(int i = 0; i < weakLits.size(); i++) if(value(weakLits[i]) == l_False) lits.push(weakLits[i]);
-}
-
 void Circumscription::learnClauseFromCounterModel() {
     assert(checker != NULL);
     vec<Lit> lits;
+    for(int i = 0; i < dynAssumptions; i++) lits.push(~assumptions[i]);
     for(int i = 0; i < groupLits.size(); i++) lits.push(checker->value(groupLits[i]) == l_False ? groupLits[i] : ~groupLits[i]);
     for(int i = 0; i < weakLits.size(); i++) if(checker->value(weakLits[i]) == l_False) lits.push(weakLits[i]);
     trace(circ, 10, "Blocking clause from counter model: " << lits);

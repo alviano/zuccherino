@@ -19,7 +19,7 @@
 #define zuccherino_parse_h
 
 namespace zuccherino {
-    
+
 template<class B>
 int64_t parseLong(B& in) {
     int64_t    val = 0;
@@ -43,6 +43,16 @@ static Glucose::Lit parseLit(B& in, Solver& S) {
     var = abs(parsed_lit)-1;
     while(var >= S.nVars()) S.newVar();
     return (parsed_lit > 0) ? Glucose::mkLit(var) : ~Glucose::mkLit(var);
+}
+
+template<class B, class Solver>
+static void parseLits(B& in, Solver& S, Glucose::vec<Glucose::Lit>& lits) {
+    Glucose::Lit lit;
+    for(;;) {
+        lit = parseLit(in, S);
+        if(lit == Glucose::lit_Undef) return;
+        lits.push(lit);
+    }
 }
 
 }

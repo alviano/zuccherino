@@ -25,8 +25,8 @@ extern Glucose::BoolOption option_print_model;
 namespace zuccherino {
 
 #define BUFFSIZE 1048576
-    
-Printer::Printer(GlucoseWrapper& solver_) : solver(solver_), buff(NULL), lastVisibleVar(INT_MAX), no_ids(false), models_unknown("s UNKNOWN\\n"), models_none("s UNSATISFIABLE\\n"), models_start("s SATISFIABLE\\n"), models_end(""), model_start("c Model #\\nv "), model_sep(""), model_end("\\n"), lit_start(""), lit_sep(" "), lit_end("") {
+
+Printer::Printer(GlucoseWrapper& solver_) : solver(solver_), buff(NULL), lastVisibleVar(INT_MAX), no_ids(false), iterations_start("c Iteration #\\n"), iterations_end(""), iteration_start(""), iteration_sep(""), iteration_end(""), models_unknown("s UNKNOWN\\n"), models_none("s UNSATISFIABLE\\n"), models_start("s SATISFIABLE\\n"), models_end(""), model_start("c Model #\\nv "), model_sep(""), model_end("\\n"), lit_start(""), lit_sep(" "), lit_end("") {
 }
 
 Printer::~Printer() {
@@ -41,11 +41,17 @@ void Printer::parseAttach(Glucose::StreamBuffer& in) {
 
 void Printer::parse() {
     assert(buff != NULL);
-    
+
     int count = readline();
     char* tmp = buff;
-    
+
     if(startswith(tmp, "no ids")) no_ids = true;
+    else if(startswith(tmp, "iterations start:")) iterations_start = string(tmp);
+    else if(startswith(tmp, "iterations end:")) iterations_end = string(tmp);
+    else if(startswith(tmp, "iteration start:")) iteration_start = string(tmp);
+    else if(startswith(tmp, "iteration sep:")) iteration_sep = string(tmp);
+    else if(startswith(tmp, "iteration end:")) iteration_end = string(tmp);
+    else if(startswith(tmp, "models end:")) models_end = string(tmp);
     else if(startswith(tmp, "models unknown:")) models_unknown = string(tmp);
     else if(startswith(tmp, "models none:")) models_none = string(tmp);
     else if(startswith(tmp, "models start:")) models_start = string(tmp);
@@ -81,13 +87,22 @@ void Printer::addVisible(Lit lit, const char* str, int len) {
 }
 
 void Printer::onStart() {
+    iterationCount = 0;
+}
+
+void Printer::onStartIteration() {
+    iterationCount++;
+    if(iterationCount == 1) pretty_print(iterations_start, iterationCount);
+    else pretty_print(iteration_sep, iterationCount);
+    pretty_print(iteration_start, iterationCount);
+
     modelCount = 0;
 }
 
 void Printer::onModel() {
     modelCount++;
     if(!option_print_model) return;
-    
+
     if(modelCount == 1) pretty_print(models_start, modelCount);
     else pretty_print(model_sep, modelCount);
     pretty_print(model_start, modelCount);
@@ -119,10 +134,16 @@ void Printer::onModel() {
     cout.flush();
 }
 
-void Printer::onDone() {
+void Printer::onDoneIteration() {
     if(modelCount > 0) pretty_print(models_end, modelCount);
-    else if(solver.okay()) pretty_print(models_unknown, modelCount);
+    else if(solver.interrupted()) pretty_print(models_unknown, modelCount);
     else pretty_print(models_none, modelCount);
+
+    pretty_print(iteration_end, iterationCount);
+}
+
+void Printer::onDone() {
+    pretty_print(iterations_end, iterationCount);
 }
 
 int Printer::readline() {
@@ -140,10 +161,10 @@ char* Printer::startswith(char*& str, const char* pre) {
 }
 
 void Printer::pretty_print(const string& str, int count) {
-    for(unsigned i = 0; i < str.size(); i++) { 
+    for(unsigned i = 0; i < str.size(); i++) {
         if(str[i] == '#') cout << count;
         else if(str[i] == '\\' && i+1 < str.size() && str[i+1] == 'n') { cout << '\n'; i++; }
-        else cout << str[i]; 
+        else cout << str[i];
     }
 }
 
