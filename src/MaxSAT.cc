@@ -22,6 +22,7 @@
 extern Glucose::IntOption option_n;
 extern Glucose::BoolOption option_print_model;
 
+
 namespace zuccherino {
 
 void MaxSATParserProlog::parseAttach(Glucose::StreamBuffer& in) {
@@ -67,6 +68,7 @@ void MaxSATParserClause::parseDetach() {
 MaxSAT::MaxSAT() : parserProlog(*this), parserClause(parserProlog), ccPropagator(*this), lowerBound(0), upperBound(INT64_MAX) {
     setParser('p', &parserProlog);
     setParser(&parserClause);
+    setModelsStart("");
 }
 
 void MaxSAT::interrupt() {
@@ -513,10 +515,6 @@ lbool MaxSAT::solveExperimental() {
 
         if(lowerBound == upperBound) break;
 
-        if(cost >= upperBound) {
-            // search for MHS
-        }
-
         status = solveWithBudget();
         if(status == l_True) {
             updateUpperBound();
@@ -555,8 +553,6 @@ lbool MaxSAT::solveExperimental() {
 }
 
 lbool MaxSAT::solve() {
-    return solveExperimental();
-
     onStartIteration();
 
     preprocess();

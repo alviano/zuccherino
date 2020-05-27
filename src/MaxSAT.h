@@ -101,8 +101,8 @@ private:
     lbool solveExperimental();
     void sortSoftByWeight();
 
-    inline void printLowerBound() const { cout << "o " << lowerBound << endl; }
-    inline void printUpperBound() const { cout << "c " << upperBound << " ub" << endl; }
+    inline void printLowerBound() const { cout << "c " << lowerBound << " lb " << endl; }
+    inline void printUpperBound() const { cout << "o " << upperBound << endl; }
     inline void printOptimum() const { cout << "s OPTIMUM FOUND" << endl; }
     
 };
