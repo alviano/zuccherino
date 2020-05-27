@@ -22,16 +22,25 @@
 static zuccherino::MaxSAT* solver = NULL;
 void SIGINT_interrupt(int) { solver->interrupt(); }
 
+extern Glucose::BoolOption option_maxsat_top_k;
+
 int main(int argc, char** argv) {
     premain();
     
     Glucose::setUsageHelp(
-        "usage: %s [flags] [input-file]\n");
+        "usage: %s [flags] [input-file] [n]\n");
 
     Glucose::parseOptions(argc, argv, true);
 
-    if(argc > 2) {
-        cerr << "Extra argument: " << argv[2] << endl;
+    if(argc == 3) {
+        if(not ('0' <= argv[2][0] and argv[2][0] <= '9')) cerr << "The second argument must be a nonnegative integer" << endl, exit(-1);
+        option_maxsat_top_k = true;
+        char *end;
+        option_n = strtol(argv[2], &end, 10);
+    }
+
+    if(argc > 3) {
+        cerr << "Extra argument: " << argv[3] << endl;
         exit(-1);
     }
     
