@@ -175,6 +175,7 @@ K(opt_K)
 , simpDB_assigns(-1)
 , simpDB_props(0)
 , order_heap(VarOrderLt(activity))
+, preference_heap(VarOrderLt(activity)) // zuccherino
 , progress_estimate(0)
 , remove_satisfied(true)
 ,lastLearntClause(CRef_Undef)
@@ -257,6 +258,7 @@ K(s.K)
 , simpDB_assigns(s.simpDB_assigns)
 , simpDB_props(s.simpDB_props)
 , order_heap(VarOrderLt(activity))
+, preference_heap(VarOrderLt(activity)) // zuccherino
 , progress_estimate(s.progress_estimate)
 , remove_satisfied(s.remove_satisfied)
 ,lastLearntClause(CRef_Undef)
@@ -296,6 +298,8 @@ K(s.K)
     s.decision.memCopyTo(decision);
     s.trail.memCopyTo(trail);
     s.order_heap.copyTo(order_heap);
+    s.preference.memCopyTo(preference);         // zuccherino
+    s.preference_heap.copyTo(preference_heap);  // zuccherino
     s.clauses.memCopyTo(clauses);
     s.learnts.memCopyTo(learnts);
     s.permanentLearnts.memCopyTo(permanentLearnts);
@@ -366,6 +370,7 @@ bool Solver::isIncremental() {
 
 Var Solver::newVar(bool sign, bool dvar) {
     int v = nVars();
+    preference.push(false);
     watches.init(mkLit(v, false));
     watches.init(mkLit(v, true));
     watchesBin.init(mkLit(v, false));
@@ -678,6 +683,15 @@ Lit Solver::pickBranchLit() {
         if(value(next) == l_Undef && decision[next])
             stats[rnd_decisions]++;
     }
+
+    // zuccherino: any preference?
+    while(next == var_Undef || value(next) != l_Undef || !decision[next])
+        if(preference_heap.empty()) {
+            next = var_Undef;
+            break;
+        } else {
+            next = preference_heap.removeMin();
+        }
 
     // Activity based decision:
     while(next == var_Undef || value(next) != l_Undef || !decision[next])
@@ -1293,11 +1307,14 @@ void Solver::removeSatisfied(vec <CRef> &cs) {
 
 void Solver::rebuildOrderHeap() {
     vec <Var> vs;
+    vec <Var> p;    // zuccherino
     for(Var v = 0; v < nVars(); v++)
-        if(decision[v] && value(v) == l_Undef)
+        if(decision[v] && value(v) == l_Undef) {
             vs.push(v);
+            if(preference[v]) p.push(v);    // zuccherino
+        }
     order_heap.build(vs);
-
+    preference_heap.build(p);   // zuccherino
 }
 
 

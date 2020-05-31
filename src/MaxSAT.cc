@@ -22,7 +22,8 @@
 extern Glucose::IntOption option_n;
 extern Glucose::BoolOption option_print_model;
 
-Glucose::BoolOption option_maxsat_top_k = Glucose::BoolOption("MAXSAT", "top-k", "Print model if found.", false);
+Glucose::BoolOption option_maxsat_top_k = Glucose::BoolOption("MAXSAT", "top-k", "Solve top-k problem.", false);
+Glucose::BoolOption option_maxsat_use_preferences = Glucose::BoolOption("MAXSAT", "use-preferences", "First assign variables introduced by the unsat core analysis.", false);
 
 namespace zuccherino {
 
@@ -74,7 +75,10 @@ MaxSAT::MaxSAT() : parserProlog(*this), parserClause(parserProlog), ccPropagator
 
 void MaxSAT::interrupt() {
     GlucoseWrapper::interrupt();
-    if(upperBound != INT64_MAX) onModel();
+    if(upperBound != INT64_MAX) {
+        cout << "o " << upperBound << endl;
+        onModel();
+    }
     onDoneIteration();
     onDone();
 }
@@ -364,6 +368,7 @@ void MaxSAT::processConflict(int64_t weight) {
 
         for(i = 0; i < bound; i++) {
             newVar();
+            if(option_maxsat_use_preferences) preference[nVars()-1] = true;
             setFrozen(nVars()-1, true);
             lits.push(~mkLit(nVars()-1));
             if(i != 0) addClause(~mkLit(nVars()-2), mkLit(nVars()-1)); // symmetry breaker
