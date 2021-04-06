@@ -21,6 +21,7 @@
 
 extern Glucose::IntOption option_n;
 extern Glucose::BoolOption option_print_model;
+extern Glucose::BoolOption option_model_as_bits;
 
 namespace zuccherino {
 
@@ -108,13 +109,21 @@ void Printer::onModel() {
     pretty_print(model_start, modelCount);
     if(visible.size() == 0) {
         if(!no_ids) {
-            for(int i = 0; i < solver.model.size(); i++) {
-                if(i >= lastVisibleVar) break;
-                if(i > 0) pretty_print(lit_sep, i+1);
-                pretty_print(lit_start, i+1);
-                if(solver.model[i] == l_False) cout << '-';
-                cout << (i+1);
-                pretty_print(lit_end, i+1);
+            if(option_model_as_bits) {
+                for(int i = 0; i < solver.model.size(); i++) {
+                    if(i >= lastVisibleVar) break;
+                    cout << (solver.model[i] == l_True);
+                }
+            }
+            else {
+                for(int i = 0; i < solver.model.size(); i++) {
+                    if(i >= lastVisibleVar) break;
+                    if(i > 0) pretty_print(lit_sep, i+1);
+                    pretty_print(lit_start, i+1);
+                    if(solver.model[i] == l_False) cout << '-';
+                    cout << (i+1);
+                    pretty_print(lit_end, i+1);
+                }
             }
         }
     }

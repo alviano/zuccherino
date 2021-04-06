@@ -64,7 +64,7 @@ public:
     void interrupt();
     
     virtual Var newVar(bool polarity = true, bool dvar = true);
-    
+
     void parse(gzFile in);
     lbool solve();
     
@@ -74,7 +74,7 @@ private:
     MaxSATParserProlog parserProlog;
     MaxSATParserClause parserClause;
     CardinalityConstraintPropagator ccPropagator;
-    
+
     vec<Lit> softLits;
     vec<int64_t> weights;
     
@@ -101,10 +101,12 @@ private:
     lbool solveExperimental();
     void sortSoftByWeight();
 
-    inline void printLowerBound() const { cout << "o " << lowerBound << endl; }
-    inline void printUpperBound() const { cout << "c " << upperBound << " ub" << endl; }
-    inline void printOptimum() const { cout << "s OPTIMUM FOUND" << endl; }
-    
+    inline void printLowerBound() const { cout << "c lb " << lowerBound << endl; }
+    inline void printUpperBound() const { cout << "c ub " << upperBound << endl; }
+    inline void printOptimum() const { cout << "o " << upperBound << "\ns OPTIMUM FOUND" << endl; }
+
+    lbool solve_top_k();
+
 };
 
 }

@@ -341,6 +341,8 @@ protected:
     int64_t             simpDB_props;     // Remaining number of propagations that must be made before next execution of 'simplify()'.
     vec<Lit>            assumptions;      // Current set of assumptions provided to solve by the user.
     Heap<VarOrderLt>    order_heap;       // A priority queue of variables ordered with respect to the variable activity.
+    vec<bool>           preference;       // zuccherino: prefer these literals
+    Heap<VarOrderLt>    preference_heap;  // zuccherino: order heap for preferred literals
     double              progress_estimate;// Set by 'search()'.
     bool                remove_satisfied; // Indicates whether possibly inefficient linear scan for satisfied clauses should be performed in 'simplify'.
     vec<unsigned int>   permDiff;           // permDiff[var] contains the current conflict number... Used to count the number of  LBD
@@ -476,7 +478,11 @@ inline CRef Solver::reason(Var x) const { return vardata[x].reason; }
 inline int  Solver::level (Var x) const { return vardata[x].level; }
 
 inline void Solver::insertVarOrder(Var x) {
-    if (!order_heap.inHeap(x) && decision[x]) order_heap.insert(x); }
+    if (!order_heap.inHeap(x) && decision[x]) order_heap.insert(x);
+
+    // zuccherino
+    if (preference[x] && !preference_heap.inHeap(x) && decision[x]) preference_heap.insert(x);
+}
 
 inline void Solver::varDecayActivity() { var_inc *= (1 / var_decay); }
 inline void Solver::varBumpActivity(Var v) { varBumpActivity(v, var_inc); }
@@ -489,7 +495,12 @@ inline void Solver::varBumpActivity(Var v, double inc) {
 
     // Update order_heap with respect to new activity:
     if (order_heap.inHeap(v))
-        order_heap.decrease(v); }
+        order_heap.decrease(v);
+
+    // zuccherino
+    if (preference_heap.inHeap(v))
+        preference_heap.decrease(v);
+}
 
 inline void Solver::claDecayActivity() { cla_inc *= (1 / clause_decay); }
 inline void Solver::claBumpActivity (Clause& c) {

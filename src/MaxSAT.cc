@@ -22,6 +22,9 @@
 extern Glucose::IntOption option_n;
 extern Glucose::BoolOption option_print_model;
 
+Glucose::BoolOption option_maxsat_top_k = Glucose::BoolOption("MAXSAT", "top-k", "Solve top-k problem.", false);
+Glucose::BoolOption option_maxsat_use_preferences = Glucose::BoolOption("MAXSAT", "use-preferences", "First assign variables introduced by the unsat core analysis.", false);
+
 namespace zuccherino {
 
 void MaxSATParserProlog::parseAttach(Glucose::StreamBuffer& in) {
@@ -67,11 +70,15 @@ void MaxSATParserClause::parseDetach() {
 MaxSAT::MaxSAT() : parserProlog(*this), parserClause(parserProlog), ccPropagator(*this), lowerBound(0), upperBound(INT64_MAX) {
     setParser('p', &parserProlog);
     setParser(&parserClause);
+    setModelsStart("");
 }
 
 void MaxSAT::interrupt() {
     GlucoseWrapper::interrupt();
-    if(upperBound != INT64_MAX) onModel();
+    if(upperBound != INT64_MAX) {
+        cout << "o " << upperBound << endl;
+        onModel();
+    }
     onDoneIteration();
     onDone();
 }
@@ -95,6 +102,11 @@ void MaxSAT::addWeightedClause(vec<Lit>& lits, int64_t weight) {
     else {
         newVar();
         soft = mkLit(nVars()-1);
+
+        if(option_maxsat_top_k) {
+            for(int i = 0; i < lits.size(); i++) addClause(~lits[i], soft);
+        }
+
         lits.push(~soft);
         addClause_(lits);
     }
@@ -146,6 +158,7 @@ void MaxSAT::updateUpperBound() {
 }
 
 void MaxSAT::hardening() {
+    assert(!option_maxsat_top_k);
     cancelUntil(0);
     int j = 0;
     for(int i = 0; i < softLits.size(); i++) {
@@ -355,6 +368,7 @@ void MaxSAT::processConflict(int64_t weight) {
 
         for(i = 0; i < bound; i++) {
             newVar();
+            if(option_maxsat_use_preferences) preference[nVars()-1] = true;
             setFrozen(nVars()-1, true);
             lits.push(~mkLit(nVars()-1));
             if(i != 0) addClause(~mkLit(nVars()-2), mkLit(nVars()-1)); // symmetry breaker
@@ -513,10 +527,6 @@ lbool MaxSAT::solveExperimental() {
 
         if(lowerBound == upperBound) break;
 
-        if(cost >= upperBound) {
-            // search for MHS
-        }
-
         status = solveWithBudget();
         if(status == l_True) {
             updateUpperBound();
@@ -554,8 +564,88 @@ lbool MaxSAT::solveExperimental() {
     return l_True;
 }
 
+lbool MaxSAT::solve_top_k() {
+    onStartIteration();
+
+    vec<Lit> originalSoftLits(softLits);
+    preprocess();
+
+    lbool status;
+
+    for(int model_count = 0;;) {
+        int64_t limit = computeNextLimit(INT64_MAX);
+        int64_t last_limit_with_model = INT64_MAX;
+        for (;;) {
+            if (interrupted()) return l_Undef;
+
+            setAssumptions(limit);
+            if (lowerBound == upperBound) break;
+            conflicts_bkp = conflicts;
+            status = solveWithBudget();
+            if (status == l_True) {
+                updateUpperBound();
+                last_limit_with_model = limit;
+                limit = computeNextLimit(limit);
+            } else {
+                assert(status == l_False);
+                trace(maxsat, 2, "UNSAT! Conflict of size " << conflict.size());
+                trace(maxsat, 100, "Conflict: " << conflict);
+
+                if (conflict.size() == 0) {
+                    lowerBound = upperBound;
+                    limit = 1;
+                    continue;
+                }
+
+                assert_msg(computeConflictWeight() == limit,
+                           "computeConflictWeight()=" << computeConflictWeight() << "; limit=" << limit << "; conflict="
+                                                      << conflict);
+                shrinkConflict(limit);
+                trimConflict(); // last trim, just in case some new learned clause may help to further reduce the core
+                assert(decisionLevel() == 0);
+
+                int64_t w = computeConflictWeight();
+                assert(w == limit);
+                addToLowerBound(w);
+
+                assert(conflict.size() > 0);
+                trace(maxsat, 4, "Analyze conflict of size " << conflict.size() << " and weight " << w);
+                processConflict(w);
+            }
+        }
+        assert(lowerBound == upperBound);
+
+        if(upperBound == INT64_MAX) {
+            cout << 'v' << endl;    // no more solutions
+            onDoneIteration();
+            return model == 0 ? l_False : l_True;
+        }
+
+        model_count++;
+        printLowerBound();
+        if(model_count == 1) printOptimum();
+        onModel();
+        if(model_count == option_n) break;
+
+        vec<Lit> blocking_clause;
+        for(int i = 0; i < originalSoftLits.size(); i++) {
+            Lit lit = originalSoftLits[i];
+            blocking_clause.push(modelValue(lit) == l_True ? ~lit : lit);
+            //if(isEliminated(i)) continue;
+        }
+        trace(maxsat, 10, "Blocking clause: " << blocking_clause);
+        cancelUntil(0);
+        addClause(blocking_clause);
+
+        upperBound = INT64_MAX;
+    }
+
+    onDoneIteration();
+    return l_True;
+}
+
 lbool MaxSAT::solve() {
-    return solveExperimental();
+    if(option_maxsat_top_k) return solve_top_k();
 
     onStartIteration();
 
@@ -616,6 +706,7 @@ lbool MaxSAT::solve() {
 }
 
 void MaxSAT::enumerateModels() {
+    assert(!option_maxsat_top_k);
     assert(decisionLevel() == 0);
     assert(assumptions.size() == 0);
 

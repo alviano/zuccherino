@@ -69,10 +69,9 @@ void ParserHandler::parse(gzFile in_) {
         if(*in == EOF) break;
         if(parsers[*in] != NULL) {
             Parser& parser = *parsers[static_cast<unsigned>(*in)];
-            
+
             ++in;
-            if(*in != ' ') cerr << "PARSE ERROR! Unexpected char: " << static_cast<char>(*in) << endl, exit(3);
-            ++in;
+            if(*in == ' ') ++in;
 
             parser.parse();
         }
