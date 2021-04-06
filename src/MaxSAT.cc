@@ -75,7 +75,7 @@ MaxSAT::MaxSAT() : parserProlog(*this), parserClause(parserProlog), ccPropagator
 
 void MaxSAT::interrupt() {
     GlucoseWrapper::interrupt();
-    if(upperBound != INT64_MAX) {
+    if(!option_maxsat_top_k && upperBound != INT64_MAX) {
         cout << "o " << upperBound << endl;
         onModel();
     }
@@ -369,6 +369,7 @@ void MaxSAT::processConflict(int64_t weight) {
         for(i = 0; i < bound; i++) {
             newVar();
             if(option_maxsat_use_preferences) preference[nVars()-1] = true;
+            insertVarOrder(nVars()-1);
             setFrozen(nVars()-1, true);
             lits.push(~mkLit(nVars()-1));
             if(i != 0) addClause(~mkLit(nVars()-2), mkLit(nVars()-1)); // symmetry breaker
