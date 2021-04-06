@@ -307,7 +307,11 @@ lbool Circumscription::solveDecisionQuery() {
                 setConfBudget(100);
                 status = solveWithBudget();
                 budgetOff();
-                if(status == l_Undef) return l_Undef;
+                if(status == l_Undef) {
+                    assumptions.clear();
+                    cancelUntil(0);
+                    continue;
+                }
                 if(status == l_True) {
                     trace(circ, 25, "Query true in model with " << ~lit);
                     onModel();
@@ -322,15 +326,15 @@ lbool Circumscription::solveDecisionQuery() {
         }
 
         assert(decisionLevel() == 0);
-        if(assumptions.size() > 0) setConfBudget(10000);
+        //if(assumptions.size() > 0) setConfBudget(10000);
         status = solveWithBudget();
-        if(assumptions.size() > 0) {
+        /*if(assumptions.size() > 0) {
             budgetOff();
             if(status == l_Undef && !asynch_interrupt) {
                 trace(circ, 40, "Cannot complete search within the budget: just add the blocking clause");
                 status = l_False;
             }
-        }
+        }*/
         if(status == l_Undef) return l_Undef;
         if(status == l_True) {
             statusChecker = check();
